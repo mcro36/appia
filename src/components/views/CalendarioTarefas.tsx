@@ -42,12 +42,19 @@ type EventoTarefa = Event & { resource: TarefaDTO; tipo: TipoEvento };
 export function CalendarioTarefas({
   tarefas,
   onSelecionar,
+  compacto = false,
 }: {
   tarefas: TarefaDTO[];
   onSelecionar?: (t: TarefaDTO) => void;
+  compacto?: boolean;
 }) {
-  const [view, setView] = useState<View>(Views.MONTH);
+  // No PWA/mobile a visão de mês fica ilegível: começa em Agenda (lista vertical).
+  const [view, setView] = useState<View>(compacto ? Views.AGENDA : Views.MONTH);
   const [date, setDate] = useState<Date>(new Date());
+
+  const viewsDisponiveis = (compacto
+    ? [Views.AGENDA, Views.DAY]
+    : [Views.MONTH, Views.WEEK, Views.DAY]) as View[];
 
   const eventos = useMemo<EventoTarefa[]>(() => {
     const evs: EventoTarefa[] = [];
@@ -107,8 +114,8 @@ export function CalendarioTarefas({
   }
 
   return (
-    <div className="rounded-xl border border-black/10 bg-white p-4 dark:border-white/10">
-      <div style={{ height: "70vh" }}>
+    <div className={`rounded-xl border border-black/10 bg-white dark:border-white/10 ${compacto ? "p-2" : "p-4"}`}>
+      <div style={{ height: compacto ? "calc(100dvh - 9rem)" : "70vh" }}>
         <Calendar
           localizer={localizer}
           culture="pt-BR"
@@ -118,7 +125,8 @@ export function CalendarioTarefas({
           onView={setView}
           date={date}
           onNavigate={setDate}
-          views={[Views.MONTH, Views.WEEK, Views.DAY] as View[]}
+          views={viewsDisponiveis}
+          length={compacto ? 60 : 30}
           popup
           eventPropGetter={corDoEvento}
           onSelectEvent={(e) => onSelecionar?.((e as EventoTarefa).resource)}

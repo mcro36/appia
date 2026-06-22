@@ -1,9 +1,10 @@
 "use client";
 
-import { useEffect, useState } from "react";
+import { useState } from "react";
 import { format } from "date-fns";
 import { ptBR } from "date-fns/locale";
 import { Clock, AlertTriangle, X, GitBranch } from "lucide-react";
+import { useIsPWA } from "@/lib/useIsPWA";
 import {
   isAtrasada,
   PRIORIDADE_COR,
@@ -16,6 +17,12 @@ import {
   type Status,
   type TarefaDTO,
 } from "@/lib/tarefas";
+
+const PWA_STATUS_LABEL: Record<Status, string> = {
+  a_fazer: "A fazer",
+  em_andamento: "Andamento",
+  concluido: "Concluído",
+};
 
 function Card({
   tarefa,
@@ -100,6 +107,7 @@ function Coluna({
   onDragStart,
   onAbrir,
   textoVazio,
+  hideHeader,
 }: {
   status: Status;
   tarefas: TarefaDTO[];
@@ -111,6 +119,7 @@ function Coluna({
   onDragStart: (id: string) => void;
   onAbrir: (t: TarefaDTO) => void;
   textoVazio: string;
+  hideHeader?: boolean;
 }) {
   return (
     <div
@@ -123,13 +132,15 @@ function Coluna({
           : "border-black/5 bg-black/[0.02] dark:border-white/5 dark:bg-white/[0.02]"
       }`}
     >
-      <div className="mb-3 flex items-center gap-2 px-1">
-        <span className={`h-2.5 w-2.5 rounded-full ${STATUS_COR[status].ponto}`} />
-        <span className="text-sm font-semibold">{STATUS_LABEL[status]}</span>
-        <span className="ml-auto rounded-full bg-black/5 px-2 py-0.5 text-xs text-zinc-500 dark:bg-white/10">
-          {tarefas.length}
-        </span>
-      </div>
+      {!hideHeader && (
+        <div className="mb-3 flex items-center gap-2 px-1">
+          <span className={`h-2.5 w-2.5 rounded-full ${STATUS_COR[status].ponto}`} />
+          <span className="text-sm font-semibold">{STATUS_LABEL[status]}</span>
+          <span className="ml-auto rounded-full bg-black/5 px-2 py-0.5 text-xs text-zinc-500 dark:bg-white/10">
+            {tarefas.length}
+          </span>
+        </div>
+      )}
       <div className="flex flex-col gap-2">
         {tarefas.map((t) => (
           <Card key={t.id} tarefa={t} onRemover={onRemover} onDragStart={onDragStart} onAbrir={onAbrir} />
@@ -158,11 +169,7 @@ export function KanbanBoard({
   const [arrastando, setArrastando] = useState<string | null>(null);
   const [colunaAlvo, setColunaAlvo] = useState<Status | null>(null);
   const [abaAtiva, setAbaAtiva] = useState<Status>("a_fazer");
-  const [isPWA, setIsPWA] = useState(false);
-
-  useEffect(() => {
-    setIsPWA(window.matchMedia("(display-mode: standalone)").matches);
-  }, []);
+  const isPWA = useIsPWA();
 
   function soltar(status: Status) {
     if (arrastando) onMudarStatus(arrastando, status);
@@ -186,9 +193,9 @@ export function KanbanBoard({
   /* ── Layout PWA: abas ── */
   if (isPWA) {
     return (
-      <div className="flex flex-col gap-3">
-        {/* Seletor de abas */}
-        <div className="flex rounded-xl border border-black/5 bg-black/[0.02] p-1 dark:border-white/5 dark:bg-white/[0.02]">
+      <div className="flex flex-col gap-4">
+        {/* Segmented control — estilo nativo */}
+        <div className="grid grid-cols-3 rounded-2xl bg-zinc-100 p-1 dark:bg-zinc-800/60">
           {STATUS.map((status) => {
             const count = tarefas.filter((t) => t.status === status).length;
             const ativa = abaAtiva === status;
@@ -196,24 +203,26 @@ export function KanbanBoard({
               <button
                 key={status}
                 onClick={() => setAbaAtiva(status)}
-                className={`flex flex-1 items-center justify-center gap-1.5 rounded-lg py-2 text-xs font-medium transition-colors ${
+                className={`flex flex-col items-center gap-1 rounded-xl py-2.5 transition-all duration-200 ${
                   ativa
-                    ? `${STATUS_COR[status].pill} shadow-sm`
-                    : "text-zinc-500 hover:text-zinc-700 dark:hover:text-zinc-300"
+                    ? "bg-white shadow-sm dark:bg-zinc-700"
+                    : "text-zinc-400 active:bg-white/50 dark:text-zinc-500"
                 }`}
               >
                 <span className={`h-2 w-2 rounded-full ${STATUS_COR[status].ponto}`} />
-                {STATUS_LABEL[status]}
-                <span className={`rounded-full px-1.5 py-0.5 text-[10px] ${ativa ? "bg-white/30" : "bg-black/5 dark:bg-white/10"}`}>
-                  {count}
+                <span className={`text-[11px] font-semibold ${ativa ? "text-zinc-800 dark:text-zinc-100" : ""}`}>
+                  {PWA_STATUS_LABEL[status]}
+                </span>
+                <span className={`text-[10px] tabular-nums ${ativa ? "text-zinc-400" : "text-zinc-300 dark:text-zinc-600"}`}>
+                  {count} {count === 1 ? "item" : "itens"}
                 </span>
               </button>
             );
           })}
         </div>
 
-        {/* Coluna ativa */}
-        <Coluna {...colunaProps(abaAtiva)} textoVazio="Nenhuma tarefa nesta coluna" />
+        {/* Coluna ativa — sem cabeçalho (tab já mostra o status) */}
+        <Coluna {...colunaProps(abaAtiva)} textoVazio="Nenhuma tarefa" hideHeader />
       </div>
     );
   }

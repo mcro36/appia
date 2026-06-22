@@ -1,8 +1,7 @@
 "use client";
 
 import { useEffect, useMemo, useState } from "react";
-import { Menu, Plus, Tag } from "lucide-react";
-import { Sidebar } from "@/components/Sidebar";
+import { Plus, Tag } from "lucide-react";
 import { BotaoIA } from "@/components/BotaoIA";
 import { ChatPanel } from "@/components/ChatPanel";
 import { CentralAlertas } from "@/components/CentralAlertas";
@@ -15,6 +14,7 @@ import { TabelaTarefas } from "@/components/views/TabelaTarefas";
 import { CalendarioTarefas } from "@/components/views/CalendarioTarefas";
 import { tarefasApi, tagsApi, type NovaTarefa } from "@/lib/api";
 import { isAtrasada, type Tipo, type TarefaDTO, type TagDTO } from "@/lib/tarefas";
+import { useIsPWA } from "@/lib/useIsPWA";
 
 export default function Home() {
   const [tarefas, setTarefas] = useState<TarefaDTO[]>([]);
@@ -24,10 +24,10 @@ export default function Home() {
   const [visao, setVisao] = useState<Visao>("kanban");
   const [mostrarForm, setMostrarForm] = useState(false);
   const [chatAberto, setChatAberto] = useState(false);
-  const [sidebarAberta, setSidebarAberta] = useState(false);
   const [tarefaAberta, setTarefaAberta] = useState<TarefaDTO | null>(null);
   const [filtroTagId, setFiltroTagId] = useState<string | null>(null);
   const [filtroTipo, setFiltroTipo] = useState<Tipo | "todos">("todos");
+  const isPWA = useIsPWA();
 
   async function carregar() {
     try {
@@ -91,32 +91,11 @@ export default function Home() {
 
   return (
     <div className="flex h-full flex-1 overflow-hidden bg-zinc-50 dark:bg-black">
-      <Sidebar mobileAberto={sidebarAberta} onFecharMobile={() => setSidebarAberta(false)} />
-
       <main className="flex min-w-0 flex-1 flex-col">
         {/* Barra de ferramentas */}
-        <div className="relative z-20 flex flex-wrap items-center gap-2 border-b border-black/10 px-4 py-3 md:gap-3 md:px-6 md:py-4 dark:border-white/10">
-          {/* Hambúrguer — só mobile */}
-          <button
-            onClick={() => setSidebarAberta(true)}
-            className="rounded-lg p-2 text-zinc-500 hover:bg-black/5 md:hidden dark:hover:bg-white/5"
-            aria-label="Abrir menu"
-          >
-            <Menu size={20} />
-          </button>
-
-          <div>
-            <h1 className="text-base font-semibold tracking-tight md:text-lg">Minhas tarefas</h1>
-            <p className="hidden text-xs text-zinc-500 sm:block">
-              {resumo.atividades} atividade(s) · {resumo.projetos} projeto(s)
-              {resumo.atrasadas > 0 && (
-                <> · <span className="font-medium text-red-600">{resumo.atrasadas} atrasada(s)</span></>
-              )}
-            </p>
-          </div>
-
-          <div className="ml-auto flex items-center gap-2">
-            {/* Filtro por tipo — só desktop */}
+        <div className="relative z-20 flex items-center gap-2 border-b border-black/10 bg-white px-3 py-2.5 dark:border-white/10 dark:bg-zinc-950 md:gap-3 md:px-6 md:py-4">
+          {/* Esquerda: filtros (só desktop) */}
+          <div className="flex flex-1 items-center gap-2">
             <div className="hidden rounded-lg border border-black/10 bg-white text-xs md:flex dark:border-white/10 dark:bg-zinc-900">
               {(["todos", "atividade", "projeto"] as const).map((t) => (
                 <button
@@ -133,7 +112,6 @@ export default function Home() {
               ))}
             </div>
 
-            {/* Filtro por tag — só desktop */}
             {tags.length > 0 && (
               <div className="hidden items-center gap-1 md:flex">
                 <Tag size={14} className="text-zinc-400" />
@@ -149,21 +127,30 @@ export default function Home() {
                 </select>
               </div>
             )}
+          </div>
 
-            <CentralAlertas tarefas={tarefas} />
+          {/* Centro: seletor de visões */}
+          <div className="flex justify-center">
             <ViewSwitcher visao={visao} onMudar={setVisao} />
-            <button
-              onClick={() => setMostrarForm(true)}
-              className="flex items-center gap-1.5 rounded-lg bg-indigo-600 px-3 py-2 text-sm font-medium text-white transition-colors hover:bg-indigo-500 md:px-4"
-            >
-              <Plus size={16} />
-              <span className="hidden sm:inline">Nova</span>
-            </button>
+          </div>
+
+          {/* Direita: alertas + nova (só desktop; no PWA viram botões flutuantes/automáticos) */}
+          <div className="flex flex-1 items-center justify-end gap-2">
+            {!isPWA && <CentralAlertas tarefas={tarefas} />}
+            {!isPWA && (
+              <button
+                onClick={() => setMostrarForm(true)}
+                className="flex items-center gap-1.5 rounded-lg bg-indigo-600 px-3 py-2 text-sm font-medium text-white transition-colors hover:bg-indigo-500 md:px-4"
+              >
+                <Plus size={16} />
+                <span className="hidden sm:inline">Nova</span>
+              </button>
+            )}
           </div>
         </div>
 
         {/* Conteúdo */}
-        <div className="flex-1 overflow-auto p-6">
+        <div className="flex-1 overflow-auto p-3 md:p-6">
           {erro && (
             <p className="mb-4 rounded-lg bg-red-50 p-3 text-sm text-red-700 dark:bg-red-900/30 dark:text-red-300">
               {erro}
@@ -186,7 +173,7 @@ export default function Home() {
               onAbrir={setTarefaAberta}
             />
           ) : (
-            <CalendarioTarefas tarefas={tarefasFiltradas} />
+            <CalendarioTarefas tarefas={tarefasFiltradas} compacto={isPWA} onSelecionar={setTarefaAberta} />
           )}
         </div>
       </main>
@@ -194,6 +181,17 @@ export default function Home() {
       {/* Chat lateral */}
       {chatAberto && (
         <ChatPanel onFechar={() => setChatAberto(false)} onTarefasMudaram={carregar} />
+      )}
+
+      {/* Botão flutuante "Nova" — só no PWA, acima do botão da IA */}
+      {isPWA && !chatAberto && (
+        <button
+          onClick={() => setMostrarForm(true)}
+          aria-label="Nova atividade"
+          className="fixed bottom-24 right-6 z-40 flex h-14 w-14 items-center justify-center rounded-full bg-indigo-600 text-white shadow-lg transition-transform hover:scale-105 active:scale-95"
+        >
+          <Plus size={24} />
+        </button>
       )}
 
       {/* Botão flutuante IA */}
