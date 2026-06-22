@@ -30,7 +30,7 @@ export function ViewSwitcher({
           }`}
         >
           <Icone size={16} />
-          {label}
+          <span className="hidden sm:inline">{label}</span>
         </button>
       ))}
     </div>

@@ -24,12 +24,13 @@ export function Modal({
   if (!aberto) return null;
 
   return (
+    /* Mobile: bottom sheet. Desktop: modal centralizado */
     <div
-      className="fixed inset-0 z-50 flex items-start justify-center overflow-y-auto bg-black/40 p-4 pt-[10vh] backdrop-blur-sm"
+      className="fixed inset-0 z-50 flex items-end bg-black/40 backdrop-blur-sm md:items-start md:justify-center md:p-4 md:pt-[10vh]"
       onClick={onFechar}
     >
       <div
-        className="w-full max-w-lg rounded-2xl border border-black/10 bg-white shadow-xl dark:border-white/10 dark:bg-zinc-900"
+        className="w-full rounded-t-2xl border border-black/10 bg-white shadow-xl dark:border-white/10 dark:bg-zinc-900 md:max-w-lg md:rounded-2xl"
         onClick={(e) => e.stopPropagation()}
       >
         <div className="flex items-center justify-between border-b border-black/10 px-5 py-4 dark:border-white/10">

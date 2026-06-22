@@ -1,7 +1,7 @@
 "use client";
 
 import { useEffect, useMemo, useState } from "react";
-import { Plus, Tag } from "lucide-react";
+import { Menu, Plus, Tag } from "lucide-react";
 import { Sidebar } from "@/components/Sidebar";
 import { BotaoIA } from "@/components/BotaoIA";
 import { ChatPanel } from "@/components/ChatPanel";
@@ -24,6 +24,7 @@ export default function Home() {
   const [visao, setVisao] = useState<Visao>("kanban");
   const [mostrarForm, setMostrarForm] = useState(false);
   const [chatAberto, setChatAberto] = useState(false);
+  const [sidebarAberta, setSidebarAberta] = useState(false);
   const [tarefaAberta, setTarefaAberta] = useState<TarefaDTO | null>(null);
   const [filtroTagId, setFiltroTagId] = useState<string | null>(null);
   const [filtroTipo, setFiltroTipo] = useState<Tipo | "todos">("todos");
@@ -90,23 +91,33 @@ export default function Home() {
 
   return (
     <div className="flex h-full flex-1 overflow-hidden bg-zinc-50 dark:bg-black">
-      <Sidebar />
+      <Sidebar mobileAberto={sidebarAberta} onFecharMobile={() => setSidebarAberta(false)} />
 
       <main className="flex min-w-0 flex-1 flex-col">
         {/* Barra de ferramentas */}
-        <div className="relative z-20 flex flex-wrap items-center gap-3 border-b border-black/10 px-6 py-4 dark:border-white/10">
+        <div className="relative z-20 flex flex-wrap items-center gap-2 border-b border-black/10 px-4 py-3 md:gap-3 md:px-6 md:py-4 dark:border-white/10">
+          {/* Hambúrguer — só mobile */}
+          <button
+            onClick={() => setSidebarAberta(true)}
+            className="rounded-lg p-2 text-zinc-500 hover:bg-black/5 md:hidden dark:hover:bg-white/5"
+            aria-label="Abrir menu"
+          >
+            <Menu size={20} />
+          </button>
+
           <div>
-            <h1 className="text-lg font-semibold tracking-tight">Minhas tarefas</h1>
-            <p className="text-xs text-zinc-500">
+            <h1 className="text-base font-semibold tracking-tight md:text-lg">Minhas tarefas</h1>
+            <p className="hidden text-xs text-zinc-500 sm:block">
               {resumo.atividades} atividade(s) · {resumo.projetos} projeto(s)
               {resumo.atrasadas > 0 && (
                 <> · <span className="font-medium text-red-600">{resumo.atrasadas} atrasada(s)</span></>
               )}
             </p>
           </div>
+
           <div className="ml-auto flex items-center gap-2">
-            {/* Filtro por tipo */}
-            <div className="flex rounded-lg border border-black/10 bg-white text-xs dark:border-white/10 dark:bg-zinc-900">
+            {/* Filtro por tipo — só desktop */}
+            <div className="hidden rounded-lg border border-black/10 bg-white text-xs md:flex dark:border-white/10 dark:bg-zinc-900">
               {(["todos", "atividade", "projeto"] as const).map((t) => (
                 <button
                   key={t}
@@ -122,9 +133,9 @@ export default function Home() {
               ))}
             </div>
 
-            {/* Filtro por tag */}
+            {/* Filtro por tag — só desktop */}
             {tags.length > 0 && (
-              <div className="flex items-center gap-1">
+              <div className="hidden items-center gap-1 md:flex">
                 <Tag size={14} className="text-zinc-400" />
                 <select
                   value={filtroTagId ?? ""}
@@ -143,10 +154,10 @@ export default function Home() {
             <ViewSwitcher visao={visao} onMudar={setVisao} />
             <button
               onClick={() => setMostrarForm(true)}
-              className="flex items-center gap-1.5 rounded-lg bg-indigo-600 px-4 py-2 text-sm font-medium text-white transition-colors hover:bg-indigo-500"
+              className="flex items-center gap-1.5 rounded-lg bg-indigo-600 px-3 py-2 text-sm font-medium text-white transition-colors hover:bg-indigo-500 md:px-4"
             >
               <Plus size={16} />
-              Nova
+              <span className="hidden sm:inline">Nova</span>
             </button>
           </div>
         </div>

@@ -69,7 +69,8 @@ export function ChatPanel({
   }
 
   return (
-    <aside className="flex w-96 shrink-0 flex-col border-l border-black/10 bg-white dark:border-white/10 dark:bg-zinc-950">
+    /* Mobile: tela cheia (fixed inset-0). Desktop: painel lateral */
+    <aside className="fixed inset-0 z-50 flex flex-col border-l border-black/10 bg-white dark:border-white/10 dark:bg-zinc-950 md:relative md:inset-auto md:z-auto md:w-96 md:shrink-0">
       <header className="flex items-center gap-2 border-b border-black/10 px-4 py-3 dark:border-white/10">
         <Sparkles size={18} className="text-indigo-600" />
         <span className="font-semibold">Assistente IA</span>

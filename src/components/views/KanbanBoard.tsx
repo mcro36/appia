@@ -111,7 +111,7 @@ export function KanbanBoard({
   }
 
   return (
-    <div className="flex gap-4 overflow-x-auto pb-4">
+    <div className="flex gap-4 overflow-x-auto pb-4 snap-x snap-mandatory md:snap-none">
       {STATUS.map((status) => {
         const daColuna = tarefas.filter((t) => t.status === status);
         const realce = colunaAlvo === status;
@@ -121,7 +121,7 @@ export function KanbanBoard({
             onDragOver={(e) => { e.preventDefault(); setColunaAlvo(status); }}
             onDragLeave={() => setColunaAlvo((c) => (c === status ? null : c))}
             onDrop={() => soltar(status)}
-            className={`flex w-72 shrink-0 flex-col rounded-xl border p-3 transition-colors ${
+            className={`flex w-[85vw] shrink-0 snap-center flex-col rounded-xl border p-3 transition-colors md:w-72 md:snap-align-none ${
               realce
                 ? "border-indigo-400 bg-indigo-50/60 dark:bg-indigo-950/30"
                 : "border-black/5 bg-black/[0.02] dark:border-white/5 dark:bg-white/[0.02]"

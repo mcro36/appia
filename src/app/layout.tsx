@@ -1,4 +1,4 @@
-import type { Metadata } from "next";
+import type { Metadata, Viewport } from "next";
 import { Geist, Geist_Mono } from "next/font/google";
 import "./globals.css";
 
@@ -12,9 +12,25 @@ const geistMono = Geist_Mono({
   subsets: ["latin"],
 });
 
+export const viewport: Viewport = {
+  width: "device-width",
+  initialScale: 1,
+  maximumScale: 1,
+  userScalable: false,
+  themeColor: "#4f46e5",
+};
+
 export const metadata: Metadata = {
-  title: "Gestão de Processos",
-  description: "Assistente de produtividade conversacional para gestão de tarefas",
+  title: "APPIA",
+  description: "Assistente de Produtividade Pessoal com IA — gerencie tarefas em linguagem natural",
+  appleWebApp: {
+    capable: true,
+    statusBarStyle: "default",
+    title: "APPIA",
+  },
+  icons: {
+    apple: "/icons/icon-192.svg",
+  },
 };
 
 export default function RootLayout({
