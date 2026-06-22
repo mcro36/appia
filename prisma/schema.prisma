@@ -1,0 +1,81 @@
+// Schema do banco — Gestão de Processos
+// tipo:        "atividade" | "projeto"
+// status:      "a_fazer" | "em_andamento" | "concluido"
+// prioridade:  "baixa" | "media" | "alta"
+// recorrencia: "none" | "diaria" | "semanal" | "mensal"
+// papel (chat): "user" | "ia"
+
+generator client {
+  provider = "prisma-client-js"
+}
+
+datasource db {
+  provider  = "postgresql"
+  url       = env("DATABASE_URL")
+  directUrl = env("DIRECT_URL")
+}
+
+model Tag {
+  id       String      @id @default(cuid())
+  nome     String      @unique
+  cor      String      @default("#6366f1")
+  tarefas  TarefaTag[]
+}
+
+model TarefaTag {
+  tarefaId String
+  tagId    String
+  tarefa   Tarefa @relation(fields: [tarefaId], references: [id], onDelete: Cascade)
+  tag      Tag    @relation(fields: [tagId], references: [id], onDelete: Cascade)
+  @@id([tarefaId, tagId])
+}
+
+model Tarefa {
+  id             String          @id @default(cuid())
+  tipo           String          @default("atividade")
+  titulo         String
+  descricao      String?
+  prazo          DateTime?
+  prioridade     String          @default("media")
+  status         String          @default("a_fazer")
+  recorrencia    String          @default("none")
+  recorrenciaAte DateTime?
+  dataInicio     DateTime?
+  duracaoMin     Int?
+  criadaEm       DateTime        @default(now())
+  atualizadaEm   DateTime        @updatedAt
+  tags           TarefaTag[]
+  lembretes      Lembrete[]
+  // Tarefas: relação auto-referencial (pai = projeto/atividade, filhos = tarefas)
+  tarefaPaiId    String?
+  tarefaPai      Tarefa?         @relation("Tarefas", fields: [tarefaPaiId], references: [id])
+  tarefas        Tarefa[]        @relation("Tarefas")
+  // Dependências
+  dependeDe      TarefaDep[]     @relation("TarefaDepende")
+  dependentes    TarefaDep[]     @relation("TarefaDependente")
+}
+
+model TarefaDep {
+  tarefaId    String
+  dependeDeId String
+  tarefa      Tarefa @relation("TarefaDepende", fields: [tarefaId], references: [id], onDelete: Cascade)
+  dependeDe   Tarefa @relation("TarefaDependente", fields: [dependeDeId], references: [id], onDelete: Cascade)
+  @@id([tarefaId, dependeDeId])
+}
+
+model Lembrete {
+  id         String   @id @default(cuid())
+  tarefa     Tarefa   @relation(fields: [tarefaId], references: [id], onDelete: Cascade)
+  tarefaId   String
+  dispararEm DateTime
+  enviado    Boolean  @default(false)
+  criadoEm   DateTime @default(now())
+}
+
+model MensagemChat {
+  id             String   @id @default(cuid())
+  papel          String
+  conteudo       String
+  acaoExecutada  String?
+  timestamp      DateTime @default(now())
+}
