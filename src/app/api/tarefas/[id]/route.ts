@@ -2,14 +2,9 @@ import { NextResponse } from "next/server";
 import { Prisma } from "@prisma/client";
 import { prisma } from "@/lib/prisma";
 import { isPrioridade, isRecorrencia, isStatus, isTipo } from "@/lib/tarefas";
-import { mapTarefa } from "@/app/api/tarefas/route";
+import { includeTarefa as include, mapTarefa } from "@/lib/mapTarefa";
 
 type Ctx = { params: Promise<{ id: string }> };
-
-const include = {
-  tags: { include: { tag: true } },
-  tarefas: true,
-};
 
 // GET /api/tarefas/:id
 export async function GET(_req: Request, { params }: Ctx) {

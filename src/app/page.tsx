@@ -6,6 +6,7 @@ import { BotaoIA } from "@/components/BotaoIA";
 import { ChatPanel } from "@/components/ChatPanel";
 import { CentralAlertas } from "@/components/CentralAlertas";
 import { ViewSwitcher, type Visao } from "@/components/ViewSwitcher";
+import { BannerNotificacoes } from "@/components/BannerNotificacoes";
 import { NovaTarefaForm } from "@/components/NovaTarefaForm";
 import { Modal } from "@/components/ui/Modal";
 import { TarefaDetalhe } from "@/components/TarefaDetalhe";
@@ -151,6 +152,7 @@ export default function Home() {
 
         {/* Conteúdo */}
         <div className="flex-1 overflow-auto p-3 md:p-6">
+          {isPWA && <BannerNotificacoes />}
           {erro && (
             <p className="mb-4 rounded-lg bg-red-50 p-3 text-sm text-red-700 dark:bg-red-900/30 dark:text-red-300">
               {erro}

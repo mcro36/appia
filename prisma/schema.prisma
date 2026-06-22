@@ -79,3 +79,20 @@ model MensagemChat {
   acaoExecutada  String?
   timestamp      DateTime @default(now())
 }
+
+// Inscrição de push do navegador (PushSubscription serializada)
+model PushSubscription {
+  id        String   @id @default(cuid())
+  endpoint  String   @unique
+  p256dh    String
+  auth      String
+  criadaEm  DateTime @default(now())
+}
+
+// Registro de notificação de prazo já enviada — evita reenvio (nivel: "vencendo" | "atrasada")
+model NotificacaoEnviada {
+  tarefaId  String
+  nivel     String
+  enviadaEm DateTime @default(now())
+  @@id([tarefaId, nivel])
+}

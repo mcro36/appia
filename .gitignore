@@ -45,6 +45,8 @@ prisma/*.db
 /public/workbox-*.js.map
 /public/worker-*.js
 /public/worker-*.js.map
+/public/swe-worker-*.js
+/public/swe-worker-*.js.map
 
 # vercel
 .vercel

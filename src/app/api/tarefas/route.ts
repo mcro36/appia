@@ -1,11 +1,7 @@
 import { NextResponse } from "next/server";
 import { prisma } from "@/lib/prisma";
 import { isPrioridade, isRecorrencia, isStatus, isTipo } from "@/lib/tarefas";
-
-const include = {
-  tags: { include: { tag: true } },
-  tarefas: true,
-};
+import { includeTarefa as include, mapTarefa } from "@/lib/mapTarefa";
 
 // GET /api/tarefas — lista apenas raízes (atividades e projetos)
 export async function GET() {
@@ -50,30 +46,4 @@ export async function POST(req: Request) {
   });
 
   return NextResponse.json(mapTarefa(tarefa), { status: 201 });
-}
-
-// eslint-disable-next-line @typescript-eslint/no-explicit-any
-export function mapTarefa(t: any) {
-  return {
-    id: t.id,
-    tipo: t.tipo,
-    titulo: t.titulo,
-    descricao: t.descricao,
-    prazo: t.prazo,
-    prioridade: t.prioridade,
-    status: t.status,
-    recorrencia: t.recorrencia,
-    recorrenciaAte: t.recorrenciaAte,
-    dataInicio: t.dataInicio,
-    duracaoMin: t.duracaoMin,
-    criadaEm: t.criadaEm,
-    atualizadaEm: t.atualizadaEm,
-    tarefaPaiId: t.tarefaPaiId,
-    tags: (t.tags ?? []).map((tt: any) => ({ id: tt.tag.id, nome: tt.tag.nome, cor: tt.tag.cor })),
-    tarefas: (t.tarefas ?? []).map((s: any) => ({
-      id: s.id, titulo: s.titulo, status: s.status,
-      prioridade: s.prioridade, prazo: s.prazo,
-      dataInicio: s.dataInicio, duracaoMin: s.duracaoMin,
-    })),
-  };
 }
