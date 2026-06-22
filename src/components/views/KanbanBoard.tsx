@@ -1,6 +1,6 @@
 "use client";
 
-import { useState } from "react";
+import { useEffect, useState } from "react";
 import { format } from "date-fns";
 import { ptBR } from "date-fns/locale";
 import { Clock, AlertTriangle, X, GitBranch } from "lucide-react";
@@ -54,7 +54,6 @@ function Card({
         </button>
       </div>
 
-      {/* Tags */}
       {tarefa.tags.length > 0 && (
         <div className="mt-1.5 flex flex-wrap gap-1">
           {tarefa.tags.map((tag) => (
@@ -90,6 +89,61 @@ function Card({
   );
 }
 
+function Coluna({
+  status,
+  tarefas,
+  realce,
+  onDragOver,
+  onDragLeave,
+  onDrop,
+  onRemover,
+  onDragStart,
+  onAbrir,
+  textoVazio,
+}: {
+  status: Status;
+  tarefas: TarefaDTO[];
+  realce: boolean;
+  onDragOver: () => void;
+  onDragLeave: () => void;
+  onDrop: () => void;
+  onRemover: (id: string) => void;
+  onDragStart: (id: string) => void;
+  onAbrir: (t: TarefaDTO) => void;
+  textoVazio: string;
+}) {
+  return (
+    <div
+      onDragOver={(e) => { e.preventDefault(); onDragOver(); }}
+      onDragLeave={onDragLeave}
+      onDrop={onDrop}
+      className={`flex flex-col rounded-xl border p-3 transition-colors ${
+        realce
+          ? "border-indigo-400 bg-indigo-50/60 dark:bg-indigo-950/30"
+          : "border-black/5 bg-black/[0.02] dark:border-white/5 dark:bg-white/[0.02]"
+      }`}
+    >
+      <div className="mb-3 flex items-center gap-2 px-1">
+        <span className={`h-2.5 w-2.5 rounded-full ${STATUS_COR[status].ponto}`} />
+        <span className="text-sm font-semibold">{STATUS_LABEL[status]}</span>
+        <span className="ml-auto rounded-full bg-black/5 px-2 py-0.5 text-xs text-zinc-500 dark:bg-white/10">
+          {tarefas.length}
+        </span>
+      </div>
+      <div className="flex flex-col gap-2">
+        {tarefas.map((t) => (
+          <Card key={t.id} tarefa={t} onRemover={onRemover} onDragStart={onDragStart} onAbrir={onAbrir} />
+        ))}
+        {tarefas.length === 0 && (
+          <p className="rounded-lg border border-dashed border-black/10 px-3 py-6 text-center text-xs text-zinc-400 dark:border-white/10">
+            {textoVazio}
+          </p>
+        )}
+      </div>
+    </div>
+  );
+}
+
 export function KanbanBoard({
   tarefas,
   onMudarStatus,
@@ -103,6 +157,12 @@ export function KanbanBoard({
 }) {
   const [arrastando, setArrastando] = useState<string | null>(null);
   const [colunaAlvo, setColunaAlvo] = useState<Status | null>(null);
+  const [abaAtiva, setAbaAtiva] = useState<Status>("a_fazer");
+  const [isPWA, setIsPWA] = useState(false);
+
+  useEffect(() => {
+    setIsPWA(window.matchMedia("(display-mode: standalone)").matches);
+  }, []);
 
   function soltar(status: Status) {
     if (arrastando) onMudarStatus(arrastando, status);
@@ -110,43 +170,62 @@ export function KanbanBoard({
     setColunaAlvo(null);
   }
 
+  const colunaProps = (status: Status) => ({
+    status,
+    tarefas: tarefas.filter((t) => t.status === status),
+    realce: colunaAlvo === status,
+    onDragOver: () => setColunaAlvo(status),
+    onDragLeave: () => setColunaAlvo((c) => (c === status ? null : c)),
+    onDrop: () => soltar(status),
+    onRemover,
+    onDragStart: setArrastando,
+    onAbrir,
+    textoVazio: "Nenhuma tarefa",
+  });
+
+  /* ── Layout PWA: abas ── */
+  if (isPWA) {
+    return (
+      <div className="flex flex-col gap-3">
+        {/* Seletor de abas */}
+        <div className="flex rounded-xl border border-black/5 bg-black/[0.02] p-1 dark:border-white/5 dark:bg-white/[0.02]">
+          {STATUS.map((status) => {
+            const count = tarefas.filter((t) => t.status === status).length;
+            const ativa = abaAtiva === status;
+            return (
+              <button
+                key={status}
+                onClick={() => setAbaAtiva(status)}
+                className={`flex flex-1 items-center justify-center gap-1.5 rounded-lg py-2 text-xs font-medium transition-colors ${
+                  ativa
+                    ? `${STATUS_COR[status].pill} shadow-sm`
+                    : "text-zinc-500 hover:text-zinc-700 dark:hover:text-zinc-300"
+                }`}
+              >
+                <span className={`h-2 w-2 rounded-full ${STATUS_COR[status].ponto}`} />
+                {STATUS_LABEL[status]}
+                <span className={`rounded-full px-1.5 py-0.5 text-[10px] ${ativa ? "bg-white/30" : "bg-black/5 dark:bg-white/10"}`}>
+                  {count}
+                </span>
+              </button>
+            );
+          })}
+        </div>
+
+        {/* Coluna ativa */}
+        <Coluna {...colunaProps(abaAtiva)} textoVazio="Nenhuma tarefa nesta coluna" />
+      </div>
+    );
+  }
+
+  /* ── Layout desktop: colunas side-by-side ── */
   return (
-    <div className="flex gap-4 overflow-x-auto pb-4 snap-x snap-mandatory md:snap-none">
-      {STATUS.map((status) => {
-        const daColuna = tarefas.filter((t) => t.status === status);
-        const realce = colunaAlvo === status;
-        return (
-          <div
-            key={status}
-            onDragOver={(e) => { e.preventDefault(); setColunaAlvo(status); }}
-            onDragLeave={() => setColunaAlvo((c) => (c === status ? null : c))}
-            onDrop={() => soltar(status)}
-            className={`flex w-[85vw] shrink-0 snap-center flex-col rounded-xl border p-3 transition-colors md:w-72 md:snap-align-none ${
-              realce
-                ? "border-indigo-400 bg-indigo-50/60 dark:bg-indigo-950/30"
-                : "border-black/5 bg-black/[0.02] dark:border-white/5 dark:bg-white/[0.02]"
-            }`}
-          >
-            <div className="mb-3 flex items-center gap-2 px-1">
-              <span className={`h-2.5 w-2.5 rounded-full ${STATUS_COR[status].ponto}`} />
-              <span className="text-sm font-semibold">{STATUS_LABEL[status]}</span>
-              <span className="ml-auto rounded-full bg-black/5 px-2 py-0.5 text-xs text-zinc-500 dark:bg-white/10">
-                {daColuna.length}
-              </span>
-            </div>
-            <div className="flex flex-col gap-2">
-              {daColuna.map((t) => (
-                <Card key={t.id} tarefa={t} onRemover={onRemover} onDragStart={setArrastando} onAbrir={onAbrir} />
-              ))}
-              {daColuna.length === 0 && (
-                <p className="rounded-lg border border-dashed border-black/10 px-3 py-6 text-center text-xs text-zinc-400 dark:border-white/10">
-                  Arraste tarefas para cá
-                </p>
-              )}
-            </div>
-          </div>
-        );
-      })}
+    <div className="flex gap-4 overflow-x-auto pb-4">
+      {STATUS.map((status) => (
+        <div key={status} className="w-72 shrink-0">
+          <Coluna {...colunaProps(status)} textoVazio="Arraste tarefas para cá" />
+        </div>
+      ))}
     </div>
   );
 }
