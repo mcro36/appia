@@ -89,7 +89,7 @@ export default function Home() {
   }, [tarefas]);
 
   return (
-    <div className="flex flex-1 bg-zinc-50 dark:bg-black">
+    <div className="flex h-full flex-1 overflow-hidden bg-zinc-50 dark:bg-black">
       <Sidebar />
 
       <main className="flex min-w-0 flex-1 flex-col">
