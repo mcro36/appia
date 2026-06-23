@@ -81,6 +81,7 @@ export type TagDTO = {
 };
 
 // Tarefa = passo de uma atividade ou projeto (era "subtarefa")
+// Pode ter subtarefas próprias (até 2 níveis na UI).
 export type TarefaFilhaDTO = {
   id: string;
   titulo: string;
@@ -89,6 +90,7 @@ export type TarefaFilhaDTO = {
   prazo: string | null;
   dataInicio: string | null;
   duracaoMin: number | null;
+  tarefas: TarefaFilhaDTO[];
 };
 
 // DTO principal — representa uma Atividade ou Projeto

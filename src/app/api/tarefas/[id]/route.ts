@@ -2,7 +2,7 @@ import { NextResponse } from "next/server";
 import { Prisma } from "@prisma/client";
 import { prisma } from "@/lib/prisma";
 import { isPrioridade, isRecorrencia, isStatus, isTipo } from "@/lib/tarefas";
-import { includeTarefa as include, mapTarefa } from "@/lib/mapTarefa";
+import { includeTarefaDetalhe as include, mapTarefa } from "@/lib/mapTarefa";
 
 type Ctx = { params: Promise<{ id: string }> };
 

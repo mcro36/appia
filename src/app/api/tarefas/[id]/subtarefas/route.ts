@@ -31,5 +31,6 @@ export async function POST(req: Request, { params }: Ctx) {
     id: sub.id, titulo: sub.titulo, status: sub.status,
     prioridade: sub.prioridade, prazo: sub.prazo,
     dataInicio: sub.dataInicio, duracaoMin: sub.duracaoMin,
+    tarefas: [],
   }, { status: 201 });
 }

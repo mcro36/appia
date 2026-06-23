@@ -2,10 +2,32 @@
 // Mantido fora dos arquivos de rota: no Next 16, route handlers só podem
 // exportar os métodos HTTP e configs reservadas.
 
+// Include raso: lista de raízes (Kanban/Tabela) — só 1 nível de filhas.
 export const includeTarefa = {
   tags: { include: { tag: true } },
   tarefas: true,
 };
+
+// Include profundo: detalhe de uma tarefa — 2 níveis de filhas (tarefa → subtarefa).
+export const includeTarefaDetalhe = {
+  tags: { include: { tag: true } },
+  tarefas: { include: { tarefas: true } },
+};
+
+// eslint-disable-next-line @typescript-eslint/no-explicit-any
+function mapFilha(s: any) {
+  return {
+    id: s.id,
+    titulo: s.titulo,
+    status: s.status,
+    prioridade: s.prioridade,
+    prazo: s.prazo,
+    dataInicio: s.dataInicio,
+    duracaoMin: s.duracaoMin,
+    // eslint-disable-next-line @typescript-eslint/no-explicit-any
+    tarefas: (s.tarefas ?? []).map((n: any) => mapFilha(n)),
+  };
+}
 
 // eslint-disable-next-line @typescript-eslint/no-explicit-any
 export function mapTarefa(t: any) {
@@ -25,10 +47,6 @@ export function mapTarefa(t: any) {
     atualizadaEm: t.atualizadaEm,
     tarefaPaiId: t.tarefaPaiId,
     tags: (t.tags ?? []).map((tt: any) => ({ id: tt.tag.id, nome: tt.tag.nome, cor: tt.tag.cor })),
-    tarefas: (t.tarefas ?? []).map((s: any) => ({
-      id: s.id, titulo: s.titulo, status: s.status,
-      prioridade: s.prioridade, prazo: s.prazo,
-      dataInicio: s.dataInicio, duracaoMin: s.duracaoMin,
-    })),
+    tarefas: (t.tarefas ?? []).map(mapFilha),
   };
 }

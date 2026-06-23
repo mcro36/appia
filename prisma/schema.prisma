@@ -48,7 +48,7 @@ model Tarefa {
   lembretes      Lembrete[]
   // Tarefas: relação auto-referencial (pai = projeto/atividade, filhos = tarefas)
   tarefaPaiId    String?
-  tarefaPai      Tarefa?         @relation("Tarefas", fields: [tarefaPaiId], references: [id])
+  tarefaPai      Tarefa?         @relation("Tarefas", fields: [tarefaPaiId], references: [id], onDelete: Cascade)
   tarefas        Tarefa[]        @relation("Tarefas")
   // Dependências
   dependeDe      TarefaDep[]     @relation("TarefaDepende")
