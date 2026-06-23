@@ -119,7 +119,12 @@ function SubtarefaLinha({ sub, onToggle, onRenomear, onExcluir, onSalvarAgenda, 
             <ChevronRight size={16} className={`transition-transform ${expandido ? "rotate-90" : ""}`} />
           </button>
         ) : (
-          <button onClick={() => onToggle(sub)} aria-label="Concluir" className="shrink-0 text-zinc-400 hover:text-indigo-600">
+          <button
+            onMouseDown={(e) => e.preventDefault()}
+            onClick={() => onToggle(sub)}
+            aria-label="Concluir"
+            className="shrink-0 text-zinc-400 hover:text-indigo-600"
+          >
             {concluida ? <CheckSquare size={16} className="text-emerald-600" /> : <Square size={16} />}
           </button>
         )}
@@ -182,6 +187,7 @@ function SubtarefaLinha({ sub, onToggle, onRenomear, onExcluir, onSalvarAgenda, 
         {editando ? (
           <>
             <button
+              onMouseDown={(e) => e.preventDefault()}
               onClick={() => onExcluir(sub)}
               title="Excluir"
               className="shrink-0 rounded p-1 text-zinc-400 transition-colors hover:bg-red-50 hover:text-red-600 dark:hover:bg-red-950/40"
@@ -189,6 +195,7 @@ function SubtarefaLinha({ sub, onToggle, onRenomear, onExcluir, onSalvarAgenda, 
               <Trash2 size={15} />
             </button>
             <button
+              onMouseDown={(e) => e.preventDefault()}
               onClick={salvarRenome}
               title="Salvar"
               className="shrink-0 rounded p-1 text-emerald-600 transition-colors hover:bg-emerald-50 dark:hover:bg-emerald-950/40"
