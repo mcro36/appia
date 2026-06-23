@@ -91,7 +91,7 @@ export default function Home() {
   }, [tarefas]);
 
   return (
-    <div className="flex h-full flex-1 overflow-hidden bg-zinc-50 dark:bg-black">
+    <div className="flex min-h-0 flex-1 overflow-hidden bg-zinc-50 dark:bg-black">
       <main className="flex min-w-0 flex-1 flex-col">
         {/* Barra de ferramentas */}
         <div className="relative z-20 flex items-center gap-2 border-b border-black/10 bg-white px-3 py-2.5 dark:border-white/10 dark:bg-zinc-950 md:gap-3 md:px-6 md:py-4">
