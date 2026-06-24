@@ -37,10 +37,18 @@ export function TarefaDetalhe({ tarefa: tarefaInicial, tagsDisponiveis, onFechar
   const [descricao, setDescricao] = useState(tarefaInicial.descricao ?? "");
   const [novaSubtarefa, setNovaSubtarefa] = useState("");
   const [subConcluidasAbertas, setSubConcluidasAbertas] = useState(false);
+  const [novaReuniao, setNovaReuniao] = useState("");
   const tituloRef = useRef<HTMLInputElement>(null);
 
   useEffect(() => { tituloRef.current?.focus(); }, []);
   useEffect(() => { carregarReunioes(); }, [carregarReunioes]);
+
+  function handleAdicionarReuniao() {
+    const texto = novaReuniao.trim();
+    if (!texto) return;
+    setNovaReuniao("");
+    criarReuniao({ titulo: texto });
+  }
 
   // Limpa o input antes de aguardar para evitar duplo envio (blur + click).
   function handleAdicionarTarefa() {
@@ -266,12 +274,24 @@ export function TarefaDetalhe({ tarefa: tarefaInicial, tagsDisponiveis, onFechar
                 />
               ))}
             </ul>
-            <button
-              onClick={() => criarReuniao({})}
-              className="mt-2 flex items-center gap-1.5 rounded-lg px-3 py-1.5 text-sm text-zinc-400 ring-1 ring-black/10 hover:bg-zinc-50 hover:text-zinc-600 dark:ring-white/10 dark:hover:bg-zinc-800"
-            >
-              <Plus size={14} /> Nova reunião
-            </button>
+            <div className="mt-2 flex gap-2">
+              <input
+                value={novaReuniao}
+                onChange={(e) => setNovaReuniao(e.target.value)}
+                onKeyDown={(e) => { if (e.key === "Enter") handleAdicionarReuniao(); }}
+                onBlur={handleAdicionarReuniao}
+                placeholder="Adicionar reunião…"
+                className="flex-1 rounded-lg px-3 py-1.5 text-sm ring-1 ring-black/10 outline-none focus:ring-indigo-400 dark:bg-zinc-800 dark:ring-white/10"
+              />
+              <button
+                onMouseDown={(e) => e.preventDefault()}
+                onClick={handleAdicionarReuniao}
+                disabled={!novaReuniao.trim()}
+                className="rounded-lg bg-zinc-100 px-3 py-1.5 hover:bg-zinc-200 disabled:opacity-40 dark:bg-zinc-800 dark:hover:bg-zinc-700"
+              >
+                <Plus size={14} />
+              </button>
+            </div>
           </div>
 
           {/* Rodapé */}
