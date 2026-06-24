@@ -29,6 +29,24 @@ function mapFilha(s: any) {
   };
 }
 
+export const includeReuniao = {
+  topicos: { orderBy: { criadoEm: "asc" as const } },
+};
+
+// eslint-disable-next-line @typescript-eslint/no-explicit-any
+export function mapReuniao(r: any) {
+  return {
+    id: r.id,
+    tarefaId: r.tarefaId,
+    titulo: r.titulo ?? null,
+    dataHora: r.dataHora ?? null,
+    anotacoes: r.anotacoes ?? null,
+    // eslint-disable-next-line @typescript-eslint/no-explicit-any
+    topicos: (r.topicos ?? []).map((t: any) => ({ id: t.id, titulo: t.titulo, concluido: t.concluido })),
+    criadaEm: r.criadaEm,
+  };
+}
+
 // eslint-disable-next-line @typescript-eslint/no-explicit-any
 export function mapTarefa(t: any) {
   return {

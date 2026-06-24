@@ -54,6 +54,22 @@ export type TarefaDTO = {
   tarefas: TarefaFilhaDTO[];
 };
 
+export type TopicoDTO = {
+  id: string;
+  titulo: string;
+  concluido: boolean;
+};
+
+export type ReuniaoDTO = {
+  id: string;
+  tarefaId: string;
+  titulo: string | null;
+  dataHora: string | null;
+  anotacoes: string | null;
+  topicos: TopicoDTO[];
+  criadaEm: string;
+};
+
 // ── Regras de negócio ──────────────────────────────────────────────
 
 /** "Atrasada" é derivado do prazo: tem prazo vencido e não está concluída. */

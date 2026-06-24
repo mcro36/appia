@@ -1,7 +1,7 @@
 "use client";
 
 import { useEffect, useRef, useState } from "react";
-import { X, Plus, Tag, Calendar, GitBranch, ChevronDown, ChevronRight } from "lucide-react";
+import { X, Plus, Tag, Calendar, GitBranch, ChevronDown, ChevronRight, Users } from "lucide-react";
 import { format } from "date-fns";
 import { ptBR } from "date-fns/locale";
 import { NIVEIS, type TarefaDTO, type TagDTO } from "@/lib/tarefas";
@@ -11,7 +11,9 @@ import {
 } from "@/lib/tarefas-display";
 import { dataParaInputLocal } from "@/lib/datas";
 import { useTarefaDetalhe } from "@/lib/useTarefaDetalhe";
+import { useReunioes } from "@/lib/useReunioes";
 import { SubtarefaLinha } from "@/components/tarefa-detalhe/SubtarefaLinha";
+import { ReuniaoLinha } from "@/components/tarefa-detalhe/ReuniaoLinha";
 
 type Props = {
   tarefa: TarefaDTO;
@@ -29,6 +31,8 @@ export function TarefaDetalhe({ tarefa: tarefaInicial, tagsDisponiveis, onFechar
     toggleTag, criarTag,
   } = useTarefaDetalhe(tarefaInicial, onAtualizar, onTarefasMudaram);
 
+  const { reunioes, carregar: carregarReunioes, criar: criarReuniao, atualizar: atualizarReuniao, remover: removerReuniao, adicionarTopico, toggleTopico, renomearTopico, removerTopico } = useReunioes(tarefaInicial.id);
+
   const [titulo, setTitulo] = useState(tarefaInicial.titulo);
   const [descricao, setDescricao] = useState(tarefaInicial.descricao ?? "");
   const [novaSubtarefa, setNovaSubtarefa] = useState("");
@@ -36,6 +40,7 @@ export function TarefaDetalhe({ tarefa: tarefaInicial, tagsDisponiveis, onFechar
   const tituloRef = useRef<HTMLInputElement>(null);
 
   useEffect(() => { tituloRef.current?.focus(); }, []);
+  useEffect(() => { carregarReunioes(); }, [carregarReunioes]);
 
   // Limpa o input antes de aguardar para evitar duplo envio (blur + click).
   function handleAdicionarTarefa() {
@@ -237,6 +242,36 @@ export function TarefaDetalhe({ tarefa: tarefaInicial, tagsDisponiveis, onFechar
                 <Plus size={14} />
               </button>
             </div>
+          </div>
+
+          {/* Reuniões */}
+          <div>
+            <p className="mb-2 flex items-center gap-1 text-xs font-medium text-zinc-500">
+              <Users size={12} /> Reuniões
+              {reunioes.length > 0 && (
+                <span className="ml-1 text-zinc-400">{reunioes.length}</span>
+              )}
+            </p>
+            <ul className="space-y-1.5">
+              {reunioes.map((r) => (
+                <ReuniaoLinha
+                  key={r.id}
+                  reuniao={r}
+                  onAtualizar={atualizarReuniao}
+                  onRemover={removerReuniao}
+                  onAdicionarTopico={adicionarTopico}
+                  onToggleTopico={toggleTopico}
+                  onRenomearTopico={renomearTopico}
+                  onRemoverTopico={removerTopico}
+                />
+              ))}
+            </ul>
+            <button
+              onClick={() => criarReuniao({})}
+              className="mt-2 flex items-center gap-1.5 rounded-lg px-3 py-1.5 text-sm text-zinc-400 ring-1 ring-black/10 hover:bg-zinc-50 hover:text-zinc-600 dark:ring-white/10 dark:hover:bg-zinc-800"
+            >
+              <Plus size={14} /> Nova reunião
+            </button>
           </div>
 
           {/* Rodapé */}

@@ -54,6 +54,7 @@ model Tarefa {
   // Dependências
   dependeDe      TarefaDep[]     @relation("TarefaDepende")
   dependentes    TarefaDep[]     @relation("TarefaDependente")
+  reunioes       Reuniao[]
 }
 
 model TarefaDep {
@@ -96,4 +97,24 @@ model NotificacaoEnviada {
   nivel     String
   enviadaEm DateTime @default(now())
   @@id([tarefaId, nivel])
+}
+
+model Reuniao {
+  id        String    @id @default(cuid())
+  tarefaId  String
+  tarefa    Tarefa    @relation(fields: [tarefaId], references: [id], onDelete: Cascade)
+  titulo    String?
+  dataHora  DateTime?
+  anotacoes String?
+  topicos   Topico[]
+  criadaEm  DateTime  @default(now())
+}
+
+model Topico {
+  id        String   @id @default(cuid())
+  reuniaoId String
+  reuniao   Reuniao  @relation(fields: [reuniaoId], references: [id], onDelete: Cascade)
+  titulo    String
+  concluido Boolean  @default(false)
+  criadoEm  DateTime @default(now())
 }
