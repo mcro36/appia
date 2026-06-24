@@ -1,7 +1,7 @@
 "use client";
 
 import { useEffect, useRef, useState } from "react";
-import { X, Plus, Tag, Calendar, GitBranch } from "lucide-react";
+import { X, Plus, Tag, Calendar, GitBranch, ChevronDown, ChevronRight } from "lucide-react";
 import { format } from "date-fns";
 import { ptBR } from "date-fns/locale";
 import { NIVEIS, type TarefaDTO, type TagDTO } from "@/lib/tarefas";
@@ -32,6 +32,7 @@ export function TarefaDetalhe({ tarefa: tarefaInicial, tagsDisponiveis, onFechar
   const [titulo, setTitulo] = useState(tarefaInicial.titulo);
   const [descricao, setDescricao] = useState(tarefaInicial.descricao ?? "");
   const [novaSubtarefa, setNovaSubtarefa] = useState("");
+  const [subConcluidasAbertas, setSubConcluidasAbertas] = useState(false);
   const tituloRef = useRef<HTMLInputElement>(null);
 
   useEffect(() => { tituloRef.current?.focus(); }, []);
@@ -191,19 +192,34 @@ export function TarefaDetalhe({ tarefa: tarefaInicial, tagsDisponiveis, onFechar
                 </span>
               )}
             </p>
-            <ul className="space-y-1.5">
-              {tarefa.tarefas.map((sub) => (
-                <SubtarefaLinha
-                  key={sub.id}
-                  sub={sub}
-                  onToggle={alternarConclusao}
-                  onRenomear={renomear}
-                  onExcluir={excluir}
-                  onSalvarAgenda={salvarAgendaTarefa}
-                  onAdicionarFilha={adicionarSubFilha}
-                />
-              ))}
-            </ul>
+            {(() => {
+              const subAtivas = tarefa.tarefas.filter((s) => s.status !== "concluido");
+              const subConcluidas = tarefa.tarefas.filter((s) => s.status === "concluido");
+              const subProps = { onToggle: alternarConclusao, onRenomear: renomear, onExcluir: excluir, onSalvarAgenda: salvarAgendaTarefa, onAdicionarFilha: adicionarSubFilha };
+              return (
+                <>
+                  <ul className="space-y-1.5">
+                    {subAtivas.map((sub) => <SubtarefaLinha key={sub.id} sub={sub} {...subProps} />)}
+                  </ul>
+                  {subConcluidas.length > 0 && (
+                    <div className="mt-1.5">
+                      <button
+                        onClick={() => setSubConcluidasAbertas((v) => !v)}
+                        className="flex items-center gap-1.5 py-1 text-xs font-medium text-zinc-400 hover:text-zinc-600 dark:hover:text-zinc-300"
+                      >
+                        {subConcluidasAbertas ? <ChevronDown size={13} /> : <ChevronRight size={13} />}
+                        Concluídas ({subConcluidas.length})
+                      </button>
+                      {subConcluidasAbertas && (
+                        <ul className="mt-1 space-y-1.5">
+                          {subConcluidas.map((sub) => <SubtarefaLinha key={sub.id} sub={sub} {...subProps} />)}
+                        </ul>
+                      )}
+                    </div>
+                  )}
+                </>
+              );
+            })()}
             <div className="mt-2 flex gap-2">
               <input
                 value={novaSubtarefa}

@@ -3,7 +3,7 @@
 import { useEffect, useRef, useState } from "react";
 import {
   CheckSquare, Square, Plus, Pencil, Trash2, Check,
-  Calendar, Clock, ChevronRight, CalendarClock,
+  Calendar, Clock, ChevronRight, ChevronDown, CalendarClock,
 } from "lucide-react";
 import { format } from "date-fns";
 import { ptBR } from "date-fns/locale";
@@ -34,6 +34,7 @@ export function SubtarefaLinha({ sub, onToggle, onRenomear, onExcluir, onSalvarA
   const [duracaoMin, setDuracaoMin] = useState(sub.duracaoMin ? String(sub.duracaoMin) : "");
   const [addAberto, setAddAberto] = useState(false);
   const [novaFilha, setNovaFilha] = useState("");
+  const [netosConcluidosAbertos, setNetosConcluidosAbertos] = useState(false);
   const agendaRef = useRef<HTMLDivElement>(null);
 
   function salvarAgenda() {
@@ -253,20 +254,36 @@ export function SubtarefaLinha({ sub, onToggle, onRenomear, onExcluir, onSalvarA
       )}
 
       {/* Subtarefas (nível 2) */}
-      {temFilhas && expandido && (
-        <ul className="space-y-1.5 px-2 pb-2 pl-8">
-          {sub.tarefas.map((neto) => (
-            <SubtarefaLinha
-              key={neto.id}
-              sub={neto}
-              onToggle={onToggle}
-              onRenomear={onRenomear}
-              onExcluir={onExcluir}
-              onSalvarAgenda={onSalvarAgenda}
-            />
-          ))}
-        </ul>
-      )}
+      {temFilhas && expandido && (() => {
+        const netosAtivos = sub.tarefas.filter((n) => n.status !== "concluido");
+        const netosConcluidos = sub.tarefas.filter((n) => n.status === "concluido");
+        const netoProps = { onToggle, onRenomear, onExcluir, onSalvarAgenda };
+        return (
+          <>
+            {netosAtivos.length > 0 && (
+              <ul className="space-y-1.5 px-2 pb-1 pl-8">
+                {netosAtivos.map((neto) => <SubtarefaLinha key={neto.id} sub={neto} {...netoProps} />)}
+              </ul>
+            )}
+            {netosConcluidos.length > 0 && (
+              <div className="px-2 pb-2 pl-8">
+                <button
+                  onClick={() => setNetosConcluidosAbertos((v) => !v)}
+                  className="flex items-center gap-1.5 py-1 text-[11px] font-medium text-zinc-400 hover:text-zinc-600 dark:hover:text-zinc-300"
+                >
+                  {netosConcluidosAbertos ? <ChevronDown size={11} /> : <ChevronRight size={11} />}
+                  Concluídas ({netosConcluidos.length})
+                </button>
+                {netosConcluidosAbertos && (
+                  <ul className="mt-1 space-y-1.5">
+                    {netosConcluidos.map((neto) => <SubtarefaLinha key={neto.id} sub={neto} {...netoProps} />)}
+                  </ul>
+                )}
+              </div>
+            )}
+          </>
+        );
+      })()}
     </li>
   );
 }

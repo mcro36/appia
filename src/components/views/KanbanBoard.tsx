@@ -3,7 +3,7 @@
 import { useState } from "react";
 import { format } from "date-fns";
 import { ptBR } from "date-fns/locale";
-import { Clock, AlertTriangle, X, GitBranch } from "lucide-react";
+import { ChevronDown, Clock, AlertTriangle, X, GitBranch } from "lucide-react";
 import { useIsPWA } from "@/lib/useIsPWA";
 import { isAtrasada, STATUS, type Status, type TarefaDTO } from "@/lib/tarefas";
 import {
@@ -112,6 +112,7 @@ function Coluna({
   onAbrir,
   textoVazio,
   hideHeader,
+  colapsavel,
 }: {
   status: Status;
   tarefas: TarefaDTO[];
@@ -124,7 +125,10 @@ function Coluna({
   onAbrir: (t: TarefaDTO) => void;
   textoVazio: string;
   hideHeader?: boolean;
+  colapsavel?: boolean;
 }) {
+  const [colapsado, setColapsado] = useState(colapsavel ?? false);
+
   return (
     <div
       onDragOver={(e) => { e.preventDefault(); onDragOver(); }}
@@ -137,24 +141,32 @@ function Coluna({
       }`}
     >
       {!hideHeader && (
-        <div className="mb-3 flex items-center gap-2 px-1">
+        <div
+          className={`mb-3 flex items-center gap-2 px-1 ${colapsavel ? "cursor-pointer select-none" : ""}`}
+          onClick={colapsavel ? () => setColapsado((v) => !v) : undefined}
+        >
           <span className={`h-2.5 w-2.5 rounded-full ${STATUS_COR[status].ponto}`} />
           <span className="text-sm font-semibold">{STATUS_LABEL[status]}</span>
           <span className="ml-auto rounded-full bg-black/5 px-2 py-0.5 text-xs text-zinc-500 dark:bg-white/10">
             {tarefas.length}
           </span>
+          {colapsavel && (
+            <ChevronDown size={14} className={`text-zinc-400 transition-transform ${colapsado ? "-rotate-90" : ""}`} />
+          )}
         </div>
       )}
-      <div className="flex flex-col gap-2">
-        {tarefas.map((t) => (
-          <Card key={t.id} tarefa={t} onRemover={onRemover} onDragStart={onDragStart} onAbrir={onAbrir} />
-        ))}
-        {tarefas.length === 0 && (
-          <p className="rounded-lg border border-dashed border-black/10 px-3 py-6 text-center text-xs text-zinc-400 dark:border-white/10">
-            {textoVazio}
-          </p>
-        )}
-      </div>
+      {!colapsado && (
+        <div className="flex flex-col gap-2">
+          {tarefas.map((t) => (
+            <Card key={t.id} tarefa={t} onRemover={onRemover} onDragStart={onDragStart} onAbrir={onAbrir} />
+          ))}
+          {tarefas.length === 0 && (
+            <p className="rounded-lg border border-dashed border-black/10 px-3 py-6 text-center text-xs text-zinc-400 dark:border-white/10">
+              {textoVazio}
+            </p>
+          )}
+        </div>
+      )}
     </div>
   );
 }
@@ -236,7 +248,7 @@ export function KanbanBoard({
     <div className="flex gap-4 overflow-x-auto pb-4">
       {STATUS.map((status) => (
         <div key={status} className="w-72 shrink-0">
-          <Coluna {...colunaProps(status)} textoVazio="Arraste tarefas para cá" />
+          <Coluna {...colunaProps(status)} textoVazio="Arraste tarefas para cá" colapsavel={status === "concluido"} />
         </div>
       ))}
     </div>
