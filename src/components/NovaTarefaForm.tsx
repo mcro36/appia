@@ -3,16 +3,21 @@
 import { useState } from "react";
 import type { NovaTarefa } from "@/lib/api";
 import {
+  NIVEIS,
   PRIORIDADES,
-  PRIORIDADE_LABEL,
   RECORRENCIAS,
-  RECORRENCIA_LABEL,
   STATUS,
-  STATUS_LABEL,
+  type Nivel,
   type Prioridade,
   type Recorrencia,
   type Status,
 } from "@/lib/tarefas";
+import {
+  NIVEL_LABEL,
+  PRIORIDADE_LABEL,
+  RECORRENCIA_LABEL,
+  STATUS_LABEL,
+} from "@/lib/tarefas-display";
 
 const campo =
   "w-full rounded-lg border border-black/10 bg-white px-3 py-2 text-sm outline-none transition-colors focus:border-indigo-500 focus:ring-2 focus:ring-indigo-500/20 dark:border-white/15 dark:bg-zinc-800";
@@ -30,6 +35,7 @@ export function NovaTarefaForm({
   const [prazo, setPrazo] = useState("");
   const [prioridade, setPrioridade] = useState<Prioridade>("media");
   const [status, setStatus] = useState<Status>("a_fazer");
+  const [nivel, setNivel] = useState<Nivel>("operacional");
   const [recorrencia, setRecorrencia] = useState<Recorrencia>("none");
   const [salvando, setSalvando] = useState(false);
 
@@ -44,6 +50,7 @@ export function NovaTarefaForm({
         prazo: prazo ? new Date(prazo).toISOString() : null,
         prioridade,
         status,
+        nivel,
         recorrencia,
       });
     } finally {
@@ -109,6 +116,18 @@ export function NovaTarefaForm({
               <option key={s} value={s}>
                 {STATUS_LABEL[s]}
               </option>
+            ))}
+          </select>
+        </div>
+        <div>
+          <label className={rotulo}>Nível</label>
+          <select
+            className={campo}
+            value={nivel}
+            onChange={(e) => setNivel(e.target.value as Nivel)}
+          >
+            {NIVEIS.map((n) => (
+              <option key={n} value={n}>{NIVEL_LABEL[n]}</option>
             ))}
           </select>
         </div>

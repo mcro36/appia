@@ -1,7 +1,8 @@
-import type { Tipo, Prioridade, Recorrencia, Status, TarefaDTO, TagDTO, TarefaFilhaDTO } from "@/lib/tarefas";
+import type { Nivel, Tipo, Prioridade, Recorrencia, Status, TarefaDTO, TagDTO, TarefaFilhaDTO } from "@/lib/tarefas";
 
 export type NovaTarefa = {
   tipo?: Tipo;
+  nivel?: Nivel;
   titulo?: string;
   descricao?: string | null;
   prazo?: string | null;

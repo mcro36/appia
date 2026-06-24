@@ -1,78 +1,18 @@
-// Domínio — constantes, rótulos e helpers compartilhados (client + server)
+// Domínio de tarefas — constantes, tipos, guards e regras de negócio puras.
+// Sem dependências de React nem detalhes de apresentação (labels/cores ficam
+// em `tarefas-display.ts`). Compartilhado entre client e server.
 
+export const NIVEIS = ["operacional", "tatico", "estrategico"] as const;
 export const TIPOS = ["atividade", "projeto"] as const;
 export const STATUS = ["a_fazer", "em_andamento", "concluido"] as const;
 export const PRIORIDADES = ["baixa", "media", "alta"] as const;
 export const RECORRENCIAS = ["none", "diaria", "semanal", "mensal"] as const;
 
+export type Nivel = (typeof NIVEIS)[number];
 export type Tipo = (typeof TIPOS)[number];
 export type Status = (typeof STATUS)[number];
 export type Prioridade = (typeof PRIORIDADES)[number];
 export type Recorrencia = (typeof RECORRENCIAS)[number];
-
-export const TIPO_LABEL: Record<Tipo, string> = {
-  atividade: "Atividade",
-  projeto: "Projeto",
-};
-
-export const TIPO_ICONE: Record<Tipo, string> = {
-  atividade: "⚡",
-  projeto: "📁",
-};
-
-export const STATUS_LABEL: Record<Status, string> = {
-  a_fazer: "A fazer",
-  em_andamento: "Em andamento",
-  concluido: "Concluído",
-};
-
-export const PRIORIDADE_LABEL: Record<Prioridade, string> = {
-  baixa: "Baixa",
-  media: "Média",
-  alta: "Alta",
-};
-
-export const RECORRENCIA_LABEL: Record<Recorrencia, string> = {
-  none: "Não repete",
-  diaria: "Diária",
-  semanal: "Semanal",
-  mensal: "Mensal",
-};
-
-export const STATUS_COR: Record<Status, { pill: string; barra: string; ponto: string }> = {
-  a_fazer: {
-    pill: "bg-zinc-100 text-zinc-700 dark:bg-zinc-800 dark:text-zinc-300",
-    barra: "bg-zinc-400",
-    ponto: "bg-zinc-400",
-  },
-  em_andamento: {
-    pill: "bg-blue-100 text-blue-700 dark:bg-blue-900/40 dark:text-blue-300",
-    barra: "bg-blue-500",
-    ponto: "bg-blue-500",
-  },
-  concluido: {
-    pill: "bg-emerald-100 text-emerald-700 dark:bg-emerald-900/40 dark:text-emerald-300",
-    barra: "bg-emerald-500",
-    ponto: "bg-emerald-500",
-  },
-};
-
-export const TIPO_COR: Record<Tipo, { pill: string; borda: string }> = {
-  atividade: {
-    pill: "bg-sky-100 text-sky-700 dark:bg-sky-900/40 dark:text-sky-300",
-    borda: "border-l-sky-400",
-  },
-  projeto: {
-    pill: "bg-violet-100 text-violet-700 dark:bg-violet-900/40 dark:text-violet-300",
-    borda: "border-l-violet-500",
-  },
-};
-
-export const PRIORIDADE_COR: Record<Prioridade, string> = {
-  baixa: "bg-zinc-100 text-zinc-600 dark:bg-zinc-800 dark:text-zinc-300",
-  media: "bg-amber-100 text-amber-700 dark:bg-amber-900/40 dark:text-amber-300",
-  alta: "bg-red-100 text-red-700 dark:bg-red-900/40 dark:text-red-300",
-};
 
 export type TagDTO = {
   id: string;
@@ -97,6 +37,7 @@ export type TarefaFilhaDTO = {
 export type TarefaDTO = {
   id: string;
   tipo: Tipo;
+  nivel: Nivel;
   titulo: string;
   descricao: string | null;
   prazo: string | null;
@@ -113,11 +54,32 @@ export type TarefaDTO = {
   tarefas: TarefaFilhaDTO[];
 };
 
+// ── Regras de negócio ──────────────────────────────────────────────
+
+/** "Atrasada" é derivado do prazo: tem prazo vencido e não está concluída. */
 export function isAtrasada(t: Pick<TarefaDTO, "prazo" | "status">): boolean {
   if (!t.prazo || t.status === "concluido") return false;
   return new Date(t.prazo).getTime() < Date.now();
 }
 
+/**
+ * Status derivado de uma tarefa a partir das suas subtarefas:
+ * todas concluídas → concluido; alguma concluída → em_andamento; nenhuma → a_fazer.
+ */
+export function statusDerivado(filhas: Pick<TarefaFilhaDTO, "status">[]): Status {
+  const total = filhas.length;
+  if (total === 0) return "a_fazer";
+  const concluidas = filhas.filter((f) => f.status === "concluido").length;
+  if (concluidas === total) return "concluido";
+  if (concluidas > 0) return "em_andamento";
+  return "a_fazer";
+}
+
+// ── Type guards (validação de entrada na API) ──────────────────────
+
+export function isNivel(v: unknown): v is Nivel {
+  return typeof v === "string" && (NIVEIS as readonly string[]).includes(v);
+}
 export function isTipo(v: unknown): v is Tipo {
   return typeof v === "string" && (TIPOS as readonly string[]).includes(v);
 }

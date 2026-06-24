@@ -5,18 +5,17 @@ import { format } from "date-fns";
 import { ptBR } from "date-fns/locale";
 import { Clock, AlertTriangle, X, GitBranch } from "lucide-react";
 import { useIsPWA } from "@/lib/useIsPWA";
+import { isAtrasada, STATUS, type Status, type TarefaDTO } from "@/lib/tarefas";
 import {
-  isAtrasada,
+  NIVEL_COR,
+  NIVEL_LABEL,
   PRIORIDADE_COR,
   PRIORIDADE_LABEL,
-  STATUS,
   STATUS_COR,
   STATUS_LABEL,
   TIPO_COR,
   TIPO_LABEL,
-  type Status,
-  type TarefaDTO,
-} from "@/lib/tarefas";
+} from "@/lib/tarefas-display";
 
 const PWA_STATUS_LABEL: Record<Status, string> = {
   a_fazer: "A fazer",
@@ -47,9 +46,14 @@ function Card({
     >
       <div className="flex items-start justify-between gap-2">
         <div className="flex-1 min-w-0">
-          <span className={`mb-1 inline-block rounded px-1.5 py-0.5 text-[10px] font-semibold ${TIPO_COR[tarefa.tipo].pill}`}>
-            {TIPO_LABEL[tarefa.tipo]}
-          </span>
+          <div className="mb-1 flex flex-wrap gap-1">
+            <span className={`rounded px-1.5 py-0.5 text-[10px] font-semibold ${TIPO_COR[tarefa.tipo].pill}`}>
+              {TIPO_LABEL[tarefa.tipo]}
+            </span>
+            <span className={`rounded px-1.5 py-0.5 text-[10px] font-semibold ${NIVEL_COR[tarefa.nivel]}`}>
+              {NIVEL_LABEL[tarefa.nivel]}
+            </span>
+          </div>
           <p className="text-sm font-medium leading-snug">{tarefa.titulo}</p>
         </div>
         <button

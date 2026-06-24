@@ -1,6 +1,6 @@
 "use client";
 
-import { useEffect, useMemo, useState } from "react";
+import { useMemo, useState } from "react";
 import { Plus, Tag } from "lucide-react";
 import { BotaoIA } from "@/components/BotaoIA";
 import { ChatPanel } from "@/components/ChatPanel";
@@ -13,82 +13,40 @@ import { TarefaDetalhe } from "@/components/TarefaDetalhe";
 import { KanbanBoard } from "@/components/views/KanbanBoard";
 import { TabelaTarefas } from "@/components/views/TabelaTarefas";
 import { CalendarioTarefas } from "@/components/views/CalendarioTarefas";
-import { tarefasApi, tagsApi, type NovaTarefa } from "@/lib/api";
-import { isAtrasada, type Tipo, type TarefaDTO, type TagDTO } from "@/lib/tarefas";
+import { type NovaTarefa } from "@/lib/api";
+import { NIVEIS, type Nivel, type Tipo, type TarefaDTO } from "@/lib/tarefas";
+import { NIVEL_LABEL } from "@/lib/tarefas-display";
+import { useTarefas } from "@/lib/useTarefas";
 import { useIsPWA } from "@/lib/useIsPWA";
 
 export default function Home() {
-  const [tarefas, setTarefas] = useState<TarefaDTO[]>([]);
-  const [tags, setTags] = useState<TagDTO[]>([]);
-  const [carregando, setCarregando] = useState(true);
-  const [erro, setErro] = useState<string | null>(null);
+  const { tarefas, tags, carregando, erro, recarregar, criar, atualizar, remover, atualizarLocal } = useTarefas();
   const [visao, setVisao] = useState<Visao>("kanban");
   const [mostrarForm, setMostrarForm] = useState(false);
   const [chatAberto, setChatAberto] = useState(false);
   const [tarefaAberta, setTarefaAberta] = useState<TarefaDTO | null>(null);
   const [filtroTagId, setFiltroTagId] = useState<string | null>(null);
   const [filtroTipo, setFiltroTipo] = useState<Tipo | "todos">("todos");
+  const [filtroNivel, setFiltroNivel] = useState<Nivel | "todos">("todos");
   const isPWA = useIsPWA();
 
-  async function carregar() {
-    try {
-      const [ts, tgs] = await Promise.all([tarefasApi.listar(), tagsApi.listar()]);
-      setTarefas(ts);
-      setTags(tgs);
-      setErro(null);
-    } catch (e) {
-      setErro(e instanceof Error ? e.message : "Erro ao carregar.");
-    } finally {
-      setCarregando(false);
-    }
-  }
-
-  useEffect(() => { carregar(); }, []);
-
-  async function criar(dados: NovaTarefa) {
-    const nova = await tarefasApi.criar(dados);
-    setTarefas((prev) => [...prev, nova]);
+  async function handleCriar(dados: NovaTarefa) {
+    await criar(dados);
     setMostrarForm(false);
   }
 
-  async function atualizar(id: string, dados: Partial<NovaTarefa>) {
-    const anterior = tarefas;
-    setTarefas((prev) => prev.map((t) => (t.id === id ? { ...t, ...dados } : t)));
-    try {
-      await tarefasApi.atualizar(id, dados);
-    } catch {
-      setTarefas(anterior);
-    }
-  }
-
-  async function remover(id: string) {
-    const anterior = tarefas;
-    setTarefas((prev) => prev.filter((t) => t.id !== id));
-    try {
-      await tarefasApi.remover(id);
-    } catch {
-      setTarefas(anterior);
-    }
-  }
-
-  function atualizarLocal(id: string, dados: Partial<TarefaDTO>) {
-    setTarefas((prev) => prev.map((t) => (t.id === id ? { ...t, ...dados } : t)));
+  // Detalhe já persistiu no servidor: sincroniza lista + painel aberto.
+  function atualizarDetalhe(id: string, dados: Partial<TarefaDTO>) {
+    atualizarLocal(id, dados);
     setTarefaAberta((prev) => (prev?.id === id ? { ...prev, ...dados } : prev));
   }
 
   const tarefasFiltradas = useMemo(() => {
     return tarefas
       .filter((t) => filtroTipo === "todos" || t.tipo === filtroTipo)
+      .filter((t) => filtroNivel === "todos" || t.nivel === filtroNivel)
       .filter((t) => !filtroTagId || t.tags.some((tag) => tag.id === filtroTagId));
-  }, [tarefas, filtroTipo, filtroTagId]);
-
-  const resumo = useMemo(() => {
-    const total = tarefas.length;
-    const atividades = tarefas.filter((t) => t.tipo === "atividade").length;
-    const projetos = tarefas.filter((t) => t.tipo === "projeto").length;
-    const atrasadas = tarefas.filter(isAtrasada).length;
-    return { total, atividades, projetos, atrasadas };
-  }, [tarefas]);
+  }, [tarefas, filtroTipo, filtroNivel, filtroTagId]);
 
   return (
     <div className="flex min-h-0 flex-1 overflow-hidden bg-zinc-50 dark:bg-black">
@@ -109,6 +67,22 @@ export default function Home() {
                   }`}
                 >
                   {t === "todos" ? "Todos" : t === "atividade" ? "Atividades" : "Projetos"}
+                </button>
+              ))}
+            </div>
+
+            <div className="hidden rounded-lg border border-black/10 bg-white text-xs md:flex dark:border-white/10 dark:bg-zinc-900">
+              {(["todos", ...NIVEIS] as const).map((n) => (
+                <button
+                  key={n}
+                  onClick={() => setFiltroNivel(n)}
+                  className={`px-3 py-1.5 transition-colors first:rounded-l-lg last:rounded-r-lg ${
+                    filtroNivel === n
+                      ? "bg-indigo-600 font-medium text-white"
+                      : "text-zinc-500 hover:bg-zinc-50 dark:hover:bg-zinc-800"
+                  }`}
+                >
+                  {n === "todos" ? "Todos" : NIVEL_LABEL[n]}
                 </button>
               ))}
             </div>
@@ -182,7 +156,7 @@ export default function Home() {
 
       {/* Chat lateral */}
       {chatAberto && (
-        <ChatPanel onFechar={() => setChatAberto(false)} onTarefasMudaram={carregar} />
+        <ChatPanel onFechar={() => setChatAberto(false)} onTarefasMudaram={recarregar} />
       )}
 
       {/* Botão flutuante "Nova" — só no PWA, acima do botão da IA */}
@@ -205,13 +179,13 @@ export default function Home() {
           tarefa={tarefaAberta}
           tagsDisponiveis={tags}
           onFechar={() => setTarefaAberta(null)}
-          onAtualizar={atualizarLocal}
-          onTarefasMudaram={carregar}
+          onAtualizar={atualizarDetalhe}
+          onTarefasMudaram={recarregar}
         />
       )}
 
       <Modal aberto={mostrarForm} titulo="Nova atividade / projeto" onFechar={() => setMostrarForm(false)}>
-        <NovaTarefaForm onCriar={criar} onCancelar={() => setMostrarForm(false)} />
+        <NovaTarefaForm onCriar={handleCriar} onCancelar={() => setMostrarForm(false)} />
       </Modal>
     </div>
   );

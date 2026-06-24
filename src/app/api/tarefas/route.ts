@@ -1,6 +1,6 @@
 import { NextResponse } from "next/server";
 import { prisma } from "@/lib/prisma";
-import { isPrioridade, isRecorrencia, isStatus, isTipo } from "@/lib/tarefas";
+import { isPrioridade, isNivel, isRecorrencia, isStatus, isTipo } from "@/lib/tarefas";
 import { includeTarefa as include, mapTarefa } from "@/lib/mapTarefa";
 
 // GET /api/tarefas — lista apenas raízes (atividades e projetos)
@@ -20,6 +20,8 @@ export async function POST(req: Request) {
     return NextResponse.json({ erro: "Título é obrigatório." }, { status: 400 });
   if (body.tipo !== undefined && !isTipo(body.tipo))
     return NextResponse.json({ erro: "Tipo inválido." }, { status: 400 });
+  if (body.nivel !== undefined && !isNivel(body.nivel))
+    return NextResponse.json({ erro: "Nível inválido." }, { status: 400 });
   if (body.prioridade !== undefined && !isPrioridade(body.prioridade))
     return NextResponse.json({ erro: "Prioridade inválida." }, { status: 400 });
   if (body.status !== undefined && !isStatus(body.status))
@@ -32,6 +34,7 @@ export async function POST(req: Request) {
   const tarefa = await prisma.tarefa.create({
     data: {
       tipo: body.tipo ?? "atividade",
+      nivel: body.nivel ?? "operacional",
       titulo: body.titulo.trim(),
       descricao: typeof body.descricao === "string" ? body.descricao.trim() || null : null,
       prazo: body.prazo ? new Date(body.prazo) : null,

@@ -34,6 +34,7 @@ export function mapTarefa(t: any) {
   return {
     id: t.id,
     tipo: t.tipo,
+    nivel: t.nivel,
     titulo: t.titulo,
     descricao: t.descricao,
     prazo: t.prazo,

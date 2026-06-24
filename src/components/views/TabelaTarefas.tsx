@@ -1,28 +1,19 @@
 "use client";
 
 import { Trash2, GitBranch } from "lucide-react";
+import { isAtrasada, PRIORIDADES, STATUS, type Prioridade, type Status, type TarefaDTO } from "@/lib/tarefas";
 import {
-  isAtrasada,
-  PRIORIDADES,
+  NIVEL_COR,
+  NIVEL_LABEL,
   PRIORIDADE_COR,
   PRIORIDADE_LABEL,
-  STATUS,
   STATUS_COR,
   STATUS_LABEL,
   TIPO_COR,
   TIPO_LABEL,
-  type Prioridade,
-  type Status,
-  type TarefaDTO,
-} from "@/lib/tarefas";
+} from "@/lib/tarefas-display";
+import { dataParaInputLocal } from "@/lib/datas";
 import type { NovaTarefa } from "@/lib/api";
-
-function paraInputLocal(iso: string | null): string {
-  if (!iso) return "";
-  const d = new Date(iso);
-  const off = d.getTimezoneOffset();
-  return new Date(d.getTime() - off * 60000).toISOString().slice(0, 16);
-}
 
 export function TabelaTarefas({
   tarefas,
@@ -70,6 +61,9 @@ export function TabelaTarefas({
                       <span className={`rounded px-1.5 py-0.5 text-[10px] font-semibold ${TIPO_COR[t.tipo].pill}`}>
                         {TIPO_LABEL[t.tipo]}
                       </span>
+                      <span className={`rounded px-1.5 py-0.5 text-[10px] font-semibold ${NIVEL_COR[t.nivel]}`}>
+                        {NIVEL_LABEL[t.nivel]}
+                      </span>
                       {t.tags.map((tag) => (
                         <span
                           key={tag.id}
@@ -112,7 +106,7 @@ export function TabelaTarefas({
                 <td className={td}>
                   <input
                     type="datetime-local"
-                    value={paraInputLocal(t.prazo)}
+                    value={dataParaInputLocal(t.prazo)}
                     onChange={(e) =>
                       onAtualizar(t.id, { prazo: e.target.value ? new Date(e.target.value).toISOString() : null })
                     }

@@ -40,6 +40,7 @@ model Tarefa {
   status         String          @default("a_fazer")
   recorrencia    String          @default("none")
   recorrenciaAte DateTime?
+  nivel          String          @default("operacional")
   dataInicio     DateTime?
   duracaoMin     Int?
   criadaEm       DateTime        @default(now())

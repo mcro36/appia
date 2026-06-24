@@ -1,7 +1,7 @@
 import { NextResponse } from "next/server";
 import { Prisma } from "@prisma/client";
 import { prisma } from "@/lib/prisma";
-import { isPrioridade, isRecorrencia, isStatus, isTipo } from "@/lib/tarefas";
+import { isPrioridade, isNivel, isRecorrencia, isStatus, isTipo } from "@/lib/tarefas";
 import { includeTarefaDetalhe as include, mapTarefa } from "@/lib/mapTarefa";
 
 type Ctx = { params: Promise<{ id: string }> };
@@ -26,6 +26,10 @@ export async function PATCH(req: Request, { params }: Ctx) {
   if (body.tipo !== undefined) {
     if (!isTipo(body.tipo)) return NextResponse.json({ erro: "Tipo inválido." }, { status: 400 });
     data.tipo = body.tipo;
+  }
+  if (body.nivel !== undefined) {
+    if (!isNivel(body.nivel)) return NextResponse.json({ erro: "Nível inválido." }, { status: 400 });
+    data.nivel = body.nivel;
   }
   if (body.titulo !== undefined) {
     if (typeof body.titulo !== "string" || !body.titulo.trim())
