@@ -1,7 +1,7 @@
 "use client";
 
 import { useEffect, useRef, useState } from "react";
-import { X, Plus, Tag, Calendar, GitBranch, ChevronDown, ChevronRight, Users } from "lucide-react";
+import { X, Plus, Tag, Calendar, GitBranch, ChevronDown, ChevronRight, Users, Lock } from "lucide-react";
 import { format } from "date-fns";
 import { ptBR } from "date-fns/locale";
 import { NIVEIS, type TarefaDTO, type TagDTO } from "@/lib/tarefas";
@@ -26,7 +26,7 @@ type Props = {
 export function TarefaDetalhe({ tarefa: tarefaInicial, tagsDisponiveis, onFechar, onAtualizar, onTarefasMudaram }: Props) {
   const {
     tarefa,
-    salvarTitulo, salvarDescricao, mudarStatus, mudarPrioridade, mudarPrazo, mudarTipo, mudarNivel,
+    salvarTitulo, salvarDescricao, mudarStatus, mudarPrioridade, mudarPrazo, mudarPrazoRigido, mudarTipo, mudarNivel,
     adicionarTarefaFilha, alternarConclusao, renomear, excluir, adicionarSubFilha, salvarAgendaTarefa,
     toggleTag, criarTag,
   } = useTarefaDetalhe(tarefaInicial, onAtualizar, onTarefasMudaram);
@@ -147,9 +147,22 @@ export function TarefaDetalhe({ tarefa: tarefaInicial, tagsDisponiveis, onFechar
               </select>
             </div>
             <div className="col-span-2">
-              <p className="mb-1 flex items-center gap-1 text-xs font-medium text-zinc-500">
+              <div className="mb-1 flex items-center gap-1 text-xs font-medium text-zinc-500">
                 <Calendar size={12} /> Prazo
-              </p>
+                {tarefa.prazo && (
+                  <button
+                    onClick={() => mudarPrazoRigido(!tarefa.prazoRigido)}
+                    title={tarefa.prazoRigido ? "Prazo rígido (prioriza no planejamento)" : "Marcar como prazo rígido"}
+                    className={`ml-auto inline-flex items-center gap-1 rounded-full px-2 py-0.5 text-[10px] font-medium transition-colors ${
+                      tarefa.prazoRigido
+                        ? "bg-red-100 text-red-700 dark:bg-red-950/50 dark:text-red-300"
+                        : "bg-zinc-100 text-zinc-500 hover:bg-zinc-200 dark:bg-zinc-800 dark:text-zinc-400"
+                    }`}
+                  >
+                    <Lock size={10} /> {tarefa.prazoRigido ? "Rígido" : "Flexível"}
+                  </button>
+                )}
+              </div>
               <input
                 type="datetime-local"
                 value={dataParaInputLocal(tarefa.prazo)}

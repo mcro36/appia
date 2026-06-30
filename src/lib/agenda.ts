@@ -9,6 +9,7 @@ export type FolhaDTO = {
   status: Status;
   prioridade: Prioridade;
   prazo: string | null;
+  prazoRigido: boolean;
   dataInicio: string | null;
   duracaoMin: number | null;
   tempoGastoMin: number | null;

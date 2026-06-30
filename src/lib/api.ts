@@ -7,6 +7,7 @@ export type NovaTarefa = {
   titulo?: string;
   descricao?: string | null;
   prazo?: string | null;
+  prazoRigido?: boolean;
   prioridade?: Prioridade;
   status?: Status;
   recorrencia?: Recorrencia;

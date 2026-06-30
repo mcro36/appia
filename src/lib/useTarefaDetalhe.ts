@@ -62,6 +62,12 @@ export function useTarefaDetalhe(
     onAtualizar(tarefa.id, { prazo });
   }
 
+  async function mudarPrazoRigido(prazoRigido: boolean) {
+    const atualizado = await tarefasApi.atualizar(tarefa.id, { prazoRigido });
+    setTarefa(atualizado);
+    onAtualizar(tarefa.id, { prazoRigido });
+  }
+
   async function mudarTipo(tipo: TarefaDTO["tipo"]) {
     const atualizado = await tarefasApi.atualizar(tarefa.id, { tipo });
     setTarefa(atualizado);
@@ -189,6 +195,7 @@ export function useTarefaDetalhe(
     mudarStatus,
     mudarPrioridade,
     mudarPrazo,
+    mudarPrazoRigido,
     mudarTipo,
     mudarNivel,
     adicionarTarefaFilha,

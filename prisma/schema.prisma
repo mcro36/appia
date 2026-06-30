@@ -36,6 +36,7 @@ model Tarefa {
   titulo         String
   descricao      String?
   prazo          DateTime?
+  prazoRigido    Boolean         @default(false)
   prioridade     String          @default("media")
   status         String          @default("a_fazer")
   recorrencia    String          @default("none")

@@ -251,6 +251,7 @@ async function executar(nome: string, args: Args): Promise<unknown> {
       const pendentes = todas
         .filter((f) => f.status === "a_fazer")
         .sort((a, b) =>
+          (Number(b.prazoRigido) - Number(a.prazoRigido)) ||
           (ordemPri[a.prioridade] - ordemPri[b.prioridade]) ||
           (a.prazo ?? "9999").localeCompare(b.prazo ?? "9999"));
 

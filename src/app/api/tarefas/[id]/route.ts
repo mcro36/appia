@@ -41,6 +41,8 @@ export async function PATCH(req: Request, { params }: Ctx) {
     data.descricao = typeof body.descricao === "string" ? body.descricao.trim() || null : null;
   if (body.prazo !== undefined)
     data.prazo = body.prazo ? new Date(body.prazo) : null;
+  if (body.prazoRigido !== undefined)
+    data.prazoRigido = Boolean(body.prazoRigido);
   if (body.prioridade !== undefined) {
     if (!isPrioridade(body.prioridade))
       return NextResponse.json({ erro: "Prioridade inválida." }, { status: 400 });

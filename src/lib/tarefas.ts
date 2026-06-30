@@ -41,6 +41,7 @@ export type TarefaDTO = {
   titulo: string;
   descricao: string | null;
   prazo: string | null;
+  prazoRigido: boolean;
   prioridade: Prioridade;
   status: Status;
   recorrencia: Recorrencia;

@@ -5,7 +5,7 @@ import { format, addDays, isToday } from "date-fns";
 import { ptBR } from "date-fns/locale";
 import {
   ChevronLeft, ChevronRight, ChevronsRight, Clock, AlertTriangle, LayoutGrid, Settings2, Sparkles, Sunset,
-  Play, Square, Timer, CalendarRange,
+  Play, Square, Timer, CalendarRange, Lock,
 } from "lucide-react";
 import {
   bucketsDoDia, bucketsGeral, agruparPorProjeto, ocupadosDoDia, proximaVaga, capacidadeDoDia,
@@ -97,6 +97,7 @@ export function PlanejadorDia({ folhas, reunioes, config, carregando, onAplicar,
     const pendentes = buckets.aFazer
       .filter((f) => f.status === "a_fazer")
       .sort((a, b) =>
+        (Number(b.prazoRigido) - Number(a.prazoRigido)) ||
         (ordemPri[a.prioridade] - ordemPri[b.prioridade]) ||
         (a.prazo ?? "9999").localeCompare(b.prazo ?? "9999"));
     const blocos = folhas
@@ -396,6 +397,9 @@ function Cartao({
       }`}
     >
       <div className="flex items-start gap-2">
+        {folha.prazoRigido && (
+          <Lock size={11} className="mt-0.5 shrink-0 text-red-500" aria-label="Prazo rígido" />
+        )}
         <p className={`flex-1 text-sm leading-snug ${concluida ? "text-zinc-400 line-through" : "font-medium"}`}>
           {folha.titulo}
         </p>

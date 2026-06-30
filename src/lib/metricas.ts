@@ -58,7 +58,9 @@ const URGENTE_MS = 48 * 60 * 60 * 1000;
 function urgente(f: FolhaDTO): boolean {
   if (isAtrasada({ prazo: f.prazo, status: f.status })) return true;
   if (!f.prazo) return false;
-  return new Date(f.prazo).getTime() - Date.now() <= URGENTE_MS;
+  // Prazo rígido encurta a janela de urgência (deadline "duro").
+  const janela = f.prazoRigido ? URGENTE_MS * 2 : URGENTE_MS;
+  return new Date(f.prazo).getTime() - Date.now() <= janela;
 }
 
 function importante(f: FolhaDTO): boolean {
