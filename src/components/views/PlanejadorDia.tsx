@@ -4,23 +4,26 @@ import { useMemo, useState } from "react";
 import { format, addDays, isToday } from "date-fns";
 import { ptBR } from "date-fns/locale";
 import {
-  ChevronLeft, ChevronRight, ChevronsRight, Clock, AlertTriangle, LayoutGrid,
+  ChevronLeft, ChevronRight, ChevronsRight, Clock, AlertTriangle, LayoutGrid, Settings2,
 } from "lucide-react";
 import {
-  bucketsDoDia, bucketsGeral, agruparPorProjeto, proximoInicioSimples,
-  mesmoDia, DURACAO_PADRAO_MIN, type FolhaDTO,
+  bucketsDoDia, bucketsGeral, agruparPorProjeto, ocupadosDoDia, proximaVaga, capacidadeDoDia,
+  mesmoDia, DURACAO_PADRAO_MIN, type FolhaDTO, type ReuniaoSlim, type ConfigDTO,
 } from "@/lib/agenda";
 import type { Status } from "@/lib/tarefas";
 import {
   STATUS_COR, STATUS_LABEL, PRIORIDADE_COR, PRIORIDADE_LABEL, NIVEL_COR, NIVEL_LABEL,
 } from "@/lib/tarefas-display";
-import { formatarDuracao } from "@/lib/datas";
+import { formatarDuracao, minutosParaHHMM, hhmmParaMinutos } from "@/lib/datas";
 import type { MudancaFolha } from "@/lib/useAgenda";
 
 type Props = {
   folhas: FolhaDTO[];
+  reunioes: ReuniaoSlim[];
+  config: ConfigDTO;
   carregando: boolean;
   onAplicar: (id: string, dados: MudancaFolha) => void;
+  onSalvarConfig: (dados: Partial<ConfigDTO>) => void;
 };
 
 const COLUNAS: { status: Status; vazio: string }[] = [
@@ -29,19 +32,25 @@ const COLUNAS: { status: Status; vazio: string }[] = [
   { status: "concluido", vazio: "Nada concluído" },
 ];
 
-export function PlanejadorDia({ folhas, carregando, onAplicar }: Props) {
+export function PlanejadorDia({ folhas, reunioes, config, carregando, onAplicar, onSalvarConfig }: Props) {
   const [modo, setModo] = useState<"geral" | "dia">("dia");
   const [dia, setDia] = useState<Date>(() => new Date());
   const [arrastando, setArrastando] = useState<string | null>(null);
   const [colunaAlvo, setColunaAlvo] = useState<Status | null>(null);
+  const [configAberta, setConfigAberta] = useState(false);
 
   const buckets = useMemo(
     () => (modo === "geral" ? bucketsGeral(folhas) : bucketsDoDia(folhas, dia, new Date())),
     [folhas, modo, dia],
   );
 
-  // Dia em que as tarefas soltas em "em andamento" serão agendadas.
   const diaAlvo = modo === "dia" ? dia : new Date();
+
+  const capacidade = useMemo(
+    () => capacidadeDoDia(reunioes, buckets.emAndamento, diaAlvo, config),
+    [reunioes, buckets.emAndamento, diaAlvo, config],
+  );
+  const sobrecarregado = capacidade.planejadoMin > capacidade.disponivelMin;
 
   function soltar(coluna: Status) {
     const id = arrastando;
@@ -52,18 +61,15 @@ export function PlanejadorDia({ folhas, carregando, onAplicar }: Props) {
     if (!f || f.status === coluna) return;
 
     if (coluna === "em_andamento") {
-      const blocos = folhas.filter((x) => x.status === "em_andamento" && mesmoDia(x.dataInicio, diaAlvo));
-      onAplicar(id, {
-        status: "em_andamento",
-        dataInicio: proximoInicioSimples(diaAlvo, blocos, new Date()),
-        duracaoMin: f.duracaoMin ?? DURACAO_PADRAO_MIN,
-      });
+      const blocos = folhas.filter((x) => x.id !== id && x.status === "em_andamento");
+      const ocupados = ocupadosDoDia(reunioes, blocos, diaAlvo, config);
+      const dur = f.duracaoMin ?? config.duracaoPadraoMin ?? DURACAO_PADRAO_MIN;
+      const { inicio } = proximaVaga(diaAlvo, ocupados, dur, new Date(), config);
+      onAplicar(id, { status: "em_andamento", dataInicio: inicio, duracaoMin: dur });
     } else if (coluna === "a_fazer") {
       onAplicar(id, { status: "a_fazer", dataInicio: null });
     } else {
-      // concluído: garante que apareça no dia mesmo sem horário prévio
-      const inicio = new Date(diaAlvo);
-      onAplicar(id, { status: "concluido", dataInicio: f.dataInicio ?? inicio.toISOString() });
+      onAplicar(id, { status: "concluido", dataInicio: f.dataInicio ?? new Date(diaAlvo).toISOString() });
     }
   }
 
@@ -72,9 +78,7 @@ export function PlanejadorDia({ folhas, carregando, onAplicar }: Props) {
     onAplicar(f.id, { status: "em_andamento", dataInicio: addDays(base, 1).toISOString() });
   }
 
-  const rotuloDia = isToday(dia)
-    ? "Hoje"
-    : format(dia, "EEE, dd 'de' MMM", { locale: ptBR });
+  const rotuloDia = isToday(dia) ? "Hoje" : format(dia, "EEE, dd 'de' MMM", { locale: ptBR });
 
   return (
     <div className="flex flex-col gap-4">
@@ -90,6 +94,37 @@ export function PlanejadorDia({ folhas, carregando, onAplicar }: Props) {
         >
           <LayoutGrid size={15} /> Geral
         </button>
+
+        <div className="relative">
+          <button
+            onClick={() => setConfigAberta((v) => !v)}
+            aria-label="Configurar expediente"
+            className="rounded-lg border border-black/10 p-1.5 text-zinc-600 hover:bg-black/5 dark:border-white/10 dark:text-zinc-300 dark:hover:bg-white/5"
+          >
+            <Settings2 size={16} />
+          </button>
+          {configAberta && (
+            <ConfigPopover
+              config={config}
+              onFechar={() => setConfigAberta(false)}
+              onSalvar={(dados) => { onSalvarConfig(dados); setConfigAberta(false); }}
+            />
+          )}
+        </div>
+
+        {modo === "dia" && (
+          <span
+            className={`hidden items-center gap-1 rounded-lg px-2 py-1 text-xs sm:inline-flex ${
+              sobrecarregado
+                ? "bg-red-50 text-red-700 dark:bg-red-950/40 dark:text-red-300"
+                : "bg-black/5 text-zinc-500 dark:bg-white/10 dark:text-zinc-400"
+            }`}
+            title="Tempo planejado vs. disponível no dia"
+          >
+            {sobrecarregado && <AlertTriangle size={12} />}
+            {formatarDuracao(capacidade.planejadoMin)} / {formatarDuracao(capacidade.disponivelMin)} livre
+          </span>
+        )}
 
         <div className="ml-auto flex items-center gap-1">
           <button
@@ -251,5 +286,92 @@ function Cartao({
         )}
       </div>
     </div>
+  );
+}
+
+function ConfigPopover({
+  config,
+  onFechar,
+  onSalvar,
+}: {
+  config: ConfigDTO;
+  onFechar: () => void;
+  onSalvar: (dados: Partial<ConfigDTO>) => void;
+}) {
+  const [expIni, setExpIni] = useState(minutosParaHHMM(config.expedienteInicioMin));
+  const [expFim, setExpFim] = useState(minutosParaHHMM(config.expedienteFimMin));
+  const [almoco, setAlmoco] = useState(config.almocoInicioMin != null && config.almocoFimMin != null);
+  const [almIni, setAlmIni] = useState(minutosParaHHMM(config.almocoInicioMin ?? 12 * 60));
+  const [almFim, setAlmFim] = useState(minutosParaHHMM(config.almocoFimMin ?? 13 * 60));
+  const [dur, setDur] = useState(String(config.duracaoPadraoMin));
+  const [buffer, setBuffer] = useState(String(config.bufferMin));
+
+  function salvar() {
+    const dados: Partial<ConfigDTO> = {
+      expedienteInicioMin: hhmmParaMinutos(expIni) ?? config.expedienteInicioMin,
+      expedienteFimMin: hhmmParaMinutos(expFim) ?? config.expedienteFimMin,
+      almocoInicioMin: almoco ? hhmmParaMinutos(almIni) : null,
+      almocoFimMin: almoco ? hhmmParaMinutos(almFim) : null,
+      duracaoPadraoMin: parseInt(dur, 10) || config.duracaoPadraoMin,
+      bufferMin: parseInt(buffer, 10) || 0,
+    };
+    onSalvar(dados);
+  }
+
+  const campo = "w-full rounded-md bg-zinc-50 px-2 py-1 text-xs ring-1 ring-black/10 outline-none focus:ring-indigo-400 dark:bg-zinc-800 dark:ring-white/10";
+  const rotulo = "mb-0.5 block text-[11px] font-medium text-zinc-500";
+
+  return (
+    <>
+      <div className="fixed inset-0 z-20" onClick={onFechar} />
+      <div className="absolute left-0 z-30 mt-1 w-64 rounded-xl border border-black/10 bg-white p-3 shadow-xl dark:border-white/10 dark:bg-zinc-900">
+        <p className="mb-2 text-xs font-semibold">Expediente</p>
+        <div className="mb-2 grid grid-cols-2 gap-2">
+          <div>
+            <label className={rotulo}>Início</label>
+            <input type="time" value={expIni} onChange={(e) => setExpIni(e.target.value)} className={campo} />
+          </div>
+          <div>
+            <label className={rotulo}>Fim</label>
+            <input type="time" value={expFim} onChange={(e) => setExpFim(e.target.value)} className={campo} />
+          </div>
+        </div>
+
+        <label className="mb-2 flex items-center gap-2 text-xs text-zinc-600 dark:text-zinc-300">
+          <input type="checkbox" checked={almoco} onChange={(e) => setAlmoco(e.target.checked)} />
+          Reservar almoço
+        </label>
+        {almoco && (
+          <div className="mb-2 grid grid-cols-2 gap-2">
+            <div>
+              <label className={rotulo}>Almoço início</label>
+              <input type="time" value={almIni} onChange={(e) => setAlmIni(e.target.value)} className={campo} />
+            </div>
+            <div>
+              <label className={rotulo}>Almoço fim</label>
+              <input type="time" value={almFim} onChange={(e) => setAlmFim(e.target.value)} className={campo} />
+            </div>
+          </div>
+        )}
+
+        <div className="mb-3 grid grid-cols-2 gap-2">
+          <div>
+            <label className={rotulo}>Duração padrão (min)</label>
+            <input type="number" min={5} step={5} value={dur} onChange={(e) => setDur(e.target.value)} className={campo} />
+          </div>
+          <div>
+            <label className={rotulo}>Buffer (min)</label>
+            <input type="number" min={0} step={5} value={buffer} onChange={(e) => setBuffer(e.target.value)} className={campo} />
+          </div>
+        </div>
+
+        <button
+          onClick={salvar}
+          className="w-full rounded-md bg-indigo-600 py-1.5 text-xs font-medium text-white hover:bg-indigo-500"
+        >
+          Salvar
+        </button>
+      </div>
+    </>
   );
 }

@@ -1,5 +1,5 @@
 import type { Nivel, Tipo, Prioridade, Recorrencia, Status, TarefaDTO, TagDTO, TarefaFilhaDTO, ReuniaoDTO, TopicoDTO } from "@/lib/tarefas";
-import type { FolhaDTO } from "@/lib/agenda";
+import type { AgendaPayload, ConfigDTO } from "@/lib/agenda";
 
 export type NovaTarefa = {
   tipo?: Tipo;
@@ -103,7 +103,17 @@ export const topicosApi = {
 };
 
 export const agendaApi = {
-  listar: () => fetch("/api/agenda").then((r) => parse<FolhaDTO[]>(r)),
+  listar: () => fetch("/api/agenda").then((r) => parse<AgendaPayload>(r)),
+};
+
+export const configApi = {
+  obter: () => fetch("/api/configuracao").then((r) => parse<ConfigDTO>(r)),
+  atualizar: (dados: Partial<ConfigDTO>) =>
+    fetch("/api/configuracao", {
+      method: "PATCH",
+      headers: { "Content-Type": "application/json" },
+      body: JSON.stringify(dados),
+    }).then((r) => parse<ConfigDTO>(r)),
 };
 
 export const tagsApi = {

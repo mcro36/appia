@@ -23,7 +23,10 @@ import { useIsPWA } from "@/lib/useIsPWA";
 
 export default function Home() {
   const { tarefas, tags, carregando, erro, recarregar, criar, atualizar, remover, atualizarLocal } = useTarefas();
-  const { folhas, carregando: carregandoAgenda, carregar: carregarAgenda, aplicar: aplicarAgenda } = useAgenda();
+  const {
+    folhas, reunioes, config, carregando: carregandoAgenda,
+    carregar: carregarAgenda, aplicar: aplicarAgenda, salvarConfig,
+  } = useAgenda();
   const [visao, setVisao] = useState<Visao>("dia");
   const [mostrarForm, setMostrarForm] = useState(false);
   const [chatAberto, setChatAberto] = useState(false);
@@ -162,8 +165,11 @@ export default function Home() {
           {visao === "dia" ? (
             <PlanejadorDia
               folhas={folhas}
+              reunioes={reunioes}
+              config={config}
               carregando={carregandoAgenda}
               onAplicar={aplicarNoPlanejador}
+              onSalvarConfig={salvarConfig}
             />
           ) : carregando ? (
             <p className="text-sm text-zinc-500">Carregando…</p>

@@ -19,3 +19,16 @@ export function formatarDuracao(min: number): string {
   const m = min % 60;
   return m ? `${h}h${m}min` : `${h}h`;
 }
+
+/** Minutos desde a meia-noite → "HH:mm" (para inputs type="time"). */
+export function minutosParaHHMM(min: number): string {
+  const pad = (n: number) => String(n).padStart(2, "0");
+  return `${pad(Math.floor(min / 60))}:${pad(min % 60)}`;
+}
+
+/** "HH:mm" → minutos desde a meia-noite (null se inválido). */
+export function hhmmParaMinutos(valor: string): number | null {
+  const m = /^(\d{1,2}):(\d{2})$/.exec(valor);
+  if (!m) return null;
+  return parseInt(m[1], 10) * 60 + parseInt(m[2], 10);
+}

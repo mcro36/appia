@@ -21,6 +21,43 @@ export const DURACAO_PADRAO_MIN = 10;
 // Expediente padrão (configurável na Fase 2 via Configuracao).
 export const EXPEDIENTE_INICIO_H = 9;
 export const EXPEDIENTE_FIM_H = 18;
+// Duração assumida para uma reunião sem duração informada (bloqueio da agenda).
+export const DURACAO_REUNIAO_PADRAO_MIN = 30;
+
+// Preferências do planejador (tempos em minutos desde a meia-noite).
+export type ConfigDTO = {
+  expedienteInicioMin: number;
+  expedienteFimMin: number;
+  almocoInicioMin: number | null;
+  almocoFimMin: number | null;
+  duracaoPadraoMin: number;
+  bufferMin: number;
+};
+
+export const CONFIG_PADRAO: ConfigDTO = {
+  expedienteInicioMin: 9 * 60,
+  expedienteFimMin: 18 * 60,
+  almocoInicioMin: 12 * 60,
+  almocoFimMin: 13 * 60,
+  duracaoPadraoMin: DURACAO_PADRAO_MIN,
+  bufferMin: 0,
+};
+
+// Reunião como compromisso fixo na agenda do dia.
+export type ReuniaoSlim = {
+  id: string;
+  titulo: string | null;
+  dataHora: string;
+  duracaoMin: number | null;
+};
+
+export type AgendaPayload = {
+  folhas: FolhaDTO[];
+  reunioes: ReuniaoSlim[];
+  config: ConfigDTO;
+};
+
+export type Intervalo = { inicio: Date; fim: Date };
 
 // ── Helpers de data (comparação por dia local) ─────────────────────
 
@@ -46,6 +83,92 @@ export function inicioDoDia(dia: Date, hora = EXPEDIENTE_INICIO_H): Date {
   const d = new Date(dia);
   d.setHours(hora, 0, 0, 0);
   return d;
+}
+
+/** Constrói uma data no dia informado a partir de minutos desde a meia-noite. */
+export function minutosParaData(dia: Date, minutos: number): Date {
+  const d = new Date(dia);
+  d.setHours(0, 0, 0, 0);
+  d.setMinutes(minutos);
+  return d;
+}
+
+// ── Distribuição automática (Fase 2) ───────────────────────────────
+
+/** Intervalos ocupados do dia: reuniões + blocos de tarefa já agendados. */
+export function ocupadosDoDia(
+  reunioes: ReuniaoSlim[],
+  blocosTarefa: { dataInicio: string | null; duracaoMin: number | null }[],
+  dia: Date,
+  cfg: ConfigDTO,
+): Intervalo[] {
+  const ints: Intervalo[] = [];
+  for (const r of reunioes) {
+    if (!mesmoDia(r.dataHora, dia)) continue;
+    const ini = new Date(r.dataHora);
+    ints.push({ inicio: ini, fim: new Date(ini.getTime() + (r.duracaoMin ?? DURACAO_REUNIAO_PADRAO_MIN) * 60000) });
+  }
+  for (const b of blocosTarefa) {
+    if (!mesmoDia(b.dataInicio, dia)) continue;
+    const ini = new Date(b.dataInicio!);
+    ints.push({ inicio: ini, fim: new Date(ini.getTime() + (b.duracaoMin ?? cfg.duracaoPadraoMin) * 60000) });
+  }
+  return ints.sort((a, b) => a.inicio.getTime() - b.inicio.getTime());
+}
+
+/**
+ * Acha a próxima vaga livre no dia para um bloco de `duracaoMin`, encaixando
+ * nos buracos entre os intervalos ocupados + almoço, dentro do expediente,
+ * começando de "agora" quando o dia é hoje. Sinaliza estouro do expediente.
+ */
+export function proximaVaga(
+  dia: Date,
+  ocupados: Intervalo[],
+  duracaoMin: number,
+  agora: Date,
+  cfg: ConfigDTO,
+): { inicio: string; estouro: boolean } {
+  const dayEnd = minutosParaData(dia, cfg.expedienteFimMin);
+  const durMs = duracaoMin * 60000;
+  const bufMs = cfg.bufferMin * 60000;
+
+  const blocos = [...ocupados];
+  if (cfg.almocoInicioMin != null && cfg.almocoFimMin != null) {
+    blocos.push({ inicio: minutosParaData(dia, cfg.almocoInicioMin), fim: minutosParaData(dia, cfg.almocoFimMin) });
+  }
+  blocos.sort((a, b) => a.inicio.getTime() - b.inicio.getTime());
+
+  let cursor = minutosParaData(dia, cfg.expedienteInicioMin);
+  if (mesmoDia(agora.toISOString(), dia) && agora.getTime() > cursor.getTime()) cursor = new Date(agora);
+
+  const place = (c: Date) => ({ inicio: c.toISOString(), estouro: c.getTime() + durMs > dayEnd.getTime() });
+
+  for (const b of blocos) {
+    if (b.fim.getTime() <= cursor.getTime()) continue; // já passou
+    if (b.inicio.getTime() - cursor.getTime() >= durMs) return place(cursor); // cabe antes deste bloco
+    cursor = new Date(b.fim.getTime() + bufMs); // pula para depois do bloco (+ buffer)
+  }
+  return place(cursor);
+}
+
+/** Capacidade do dia: minutos planejados (blocos de tarefa) vs. livres. */
+export function capacidadeDoDia(
+  reunioes: ReuniaoSlim[],
+  blocosTarefa: { dataInicio: string | null; duracaoMin: number | null }[],
+  dia: Date,
+  cfg: ConfigDTO,
+): { planejadoMin: number; disponivelMin: number } {
+  const expediente = cfg.expedienteFimMin - cfg.expedienteInicioMin;
+  const almoco =
+    cfg.almocoInicioMin != null && cfg.almocoFimMin != null ? cfg.almocoFimMin - cfg.almocoInicioMin : 0;
+  let reuniaoMin = 0;
+  for (const r of reunioes) if (mesmoDia(r.dataHora, dia)) reuniaoMin += r.duracaoMin ?? DURACAO_REUNIAO_PADRAO_MIN;
+  const disponivelMin = Math.max(0, expediente - almoco - reuniaoMin);
+
+  let planejadoMin = 0;
+  for (const b of blocosTarefa) if (mesmoDia(b.dataInicio, dia)) planejadoMin += b.duracaoMin ?? cfg.duracaoPadraoMin;
+
+  return { planejadoMin, disponivelMin };
 }
 
 // ── Distribuição (stub da Fase 1: empilha após o último bloco) ─────

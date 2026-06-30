@@ -82,6 +82,19 @@ model MensagemChat {
   timestamp      DateTime @default(now())
 }
 
+// Preferências do planejador diário (linha única, id=1). Tempos em minutos
+// desde a meia-noite (ex.: 540 = 09:00).
+model Configuracao {
+  id               Int      @id @default(1)
+  expedienteInicioMin Int   @default(540)
+  expedienteFimMin    Int   @default(1080)
+  almocoInicioMin     Int?  @default(720)
+  almocoFimMin        Int?  @default(780)
+  duracaoPadraoMin    Int   @default(10)
+  bufferMin           Int   @default(0)
+  atualizadaEm     DateTime @updatedAt
+}
+
 // Inscrição de push do navegador (PushSubscription serializada)
 model PushSubscription {
   id        String   @id @default(cuid())

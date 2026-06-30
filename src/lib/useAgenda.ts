@@ -1,11 +1,11 @@
 "use client";
 
-// Fonte de dados do planejador diário: carrega as folhas agendáveis e aplica
-// mutações (status, horário) com atualização otimista. Componentes cuidam só
-// de renderização e estado visual.
+// Fonte de dados do planejador diário: carrega folhas agendáveis, reuniões
+// (compromissos fixos) e a configuração; aplica mutações com atualização
+// otimista. Componentes cuidam só de renderização e estado visual.
 import { useCallback, useEffect, useState } from "react";
-import { agendaApi, tarefasApi } from "@/lib/api";
-import type { FolhaDTO } from "@/lib/agenda";
+import { agendaApi, configApi, tarefasApi } from "@/lib/api";
+import { CONFIG_PADRAO, type ConfigDTO, type FolhaDTO, type ReuniaoSlim } from "@/lib/agenda";
 import type { Status } from "@/lib/tarefas";
 
 export type MudancaFolha = {
@@ -16,11 +16,16 @@ export type MudancaFolha = {
 
 export function useAgenda() {
   const [folhas, setFolhas] = useState<FolhaDTO[]>([]);
+  const [reunioes, setReunioes] = useState<ReuniaoSlim[]>([]);
+  const [config, setConfig] = useState<ConfigDTO>(CONFIG_PADRAO);
   const [carregando, setCarregando] = useState(true);
 
   const carregar = useCallback(async () => {
     try {
-      setFolhas(await agendaApi.listar());
+      const data = await agendaApi.listar();
+      setFolhas(data.folhas);
+      setReunioes(data.reunioes);
+      setConfig(data.config);
     } finally {
       setCarregando(false);
     }
@@ -40,5 +45,10 @@ export function useAgenda() {
     }
   }, [carregar]);
 
-  return { folhas, carregando, carregar, aplicar };
+  const salvarConfig = useCallback(async (dados: Partial<ConfigDTO>) => {
+    const atualizada = await configApi.atualizar(dados);
+    setConfig(atualizada);
+  }, []);
+
+  return { folhas, reunioes, config, carregando, carregar, aplicar, salvarConfig };
 }
