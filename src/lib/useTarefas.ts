@@ -28,7 +28,10 @@ export function useTarefas(): UseTarefas {
 
   const recarregar = useCallback(async () => {
     try {
-      const [ts, tgs] = await Promise.all([tarefasApi.listar(), tagsApi.listar()]);
+      // Sequencial (não Promise.all): o pooler do Supabase usa connection_limit=1
+      // e requisições concorrentes podem esgotar o pool (P2024). Ver memória.
+      const ts = await tarefasApi.listar();
+      const tgs = await tagsApi.listar();
       setTarefas(ts);
       setTags(tgs);
       setErro(null);

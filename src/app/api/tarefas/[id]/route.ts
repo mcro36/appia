@@ -3,7 +3,7 @@ import { Prisma } from "@prisma/client";
 import { prisma } from "@/lib/prisma";
 import { isPrioridade, isNivel, isRecorrencia, isStatus, isTipo } from "@/lib/tarefas";
 import { includeTarefaDetalhe as include, mapTarefa } from "@/lib/mapTarefa";
-import { proximaOcorrencia } from "@/lib/datas";
+import { dadosAoConcluir } from "@/lib/recorrencia";
 
 type Ctx = { params: Promise<{ id: string }> };
 
@@ -72,23 +72,13 @@ export async function PATCH(req: Request, { params }: Ctx) {
     data.tags = { deleteMany: {}, create: (body.tagIds as string[]).map((tagId) => ({ tagId })) };
 
   // Hábitos: concluir uma tarefa recorrente gera a próxima ocorrência em vez de
-  // encerrá-la — volta para "a fazer" com o prazo avançado (Todoist-style).
+  // encerrá-la (regra centralizada em recorrencia.ts).
   if (body.status === "concluido") {
     const atual = await prisma.tarefa.findUnique({
       where: { id },
       select: { recorrencia: true, prazo: true, recorrenciaAte: true },
     });
-    if (atual && atual.recorrencia && atual.recorrencia !== "none") {
-      const agora = new Date();
-      const base = atual.prazo && atual.prazo > agora ? atual.prazo : agora;
-      const prox = proximaOcorrencia(base, atual.recorrencia);
-      if (!atual.recorrenciaAte || prox <= atual.recorrenciaAte) {
-        data.status = "a_fazer";
-        data.concluidaEm = null;
-        data.prazo = prox;
-        data.dataInicio = null;
-      }
-    }
+    if (atual) Object.assign(data, dadosAoConcluir(atual));
   }
 
   try {

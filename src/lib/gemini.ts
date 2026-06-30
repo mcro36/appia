@@ -8,7 +8,7 @@ import { prisma } from "@/lib/prisma";
 import { PRIORIDADES, RECORRENCIAS, STATUS, TIPOS } from "@/lib/tarefas";
 import { includeTarefaDetalhe, flattenFolhas } from "@/lib/mapTarefa";
 import { ocupadosDoDia, proximaVaga, mesmoDia, type ConfigDTO, type ReuniaoSlim } from "@/lib/agenda";
-import { proximaOcorrencia } from "@/lib/datas";
+import { dadosAoConcluir } from "@/lib/recorrencia";
 
 const MODELO = "gemini-2.5-flash";
 
@@ -211,6 +211,13 @@ async function executar(nome: string, args: Args): Promise<unknown> {
       if (args.status !== undefined) {
         data.status = str(args.status);
         data.concluidaEm = str(args.status) === "concluido" ? new Date() : null;
+        // Mesma regra de hábitos da rota PATCH: concluir tarefa recorrente rola.
+        if (str(args.status) === "concluido") {
+          const atual = await prisma.tarefa.findUnique({
+            where: { id }, select: { recorrencia: true, prazo: true, recorrenciaAte: true },
+          });
+          if (atual) Object.assign(data, dadosAoConcluir(atual));
+        }
       }
       if (args.recorrencia !== undefined) data.recorrencia = str(args.recorrencia);
       if (args.tags !== undefined) {
@@ -276,15 +283,7 @@ async function executar(nome: string, args: Args): Promise<unknown> {
           select: { recorrencia: true, prazo: true, recorrenciaAte: true },
         });
         // Hábitos: tarefa recorrente rola para a próxima ocorrência ao concluir.
-        let data: Record<string, unknown> = { status: "concluido", concluidaEm: new Date() };
-        if (atual && atual.recorrencia && atual.recorrencia !== "none") {
-          const agora = new Date();
-          const base = atual.prazo && atual.prazo > agora ? atual.prazo : agora;
-          const prox = proximaOcorrencia(base, atual.recorrencia);
-          if (!atual.recorrenciaAte || prox <= atual.recorrenciaAte) {
-            data = { status: "a_fazer", concluidaEm: null, prazo: prox, dataInicio: null };
-          }
-        }
+        const data = atual ? dadosAoConcluir(atual) : { status: "concluido", concluidaEm: new Date() };
         const t = await prisma.tarefa.update({ where: { id }, data });
         return { ok: true, id: t.id, titulo: t.titulo };
       } catch {

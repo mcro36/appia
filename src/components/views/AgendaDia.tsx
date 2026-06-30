@@ -1,6 +1,6 @@
 "use client";
 
-import { useRef, useState } from "react";
+import { useEffect, useRef, useState } from "react";
 import { Users } from "lucide-react";
 import { mesmoDia, type ConfigDTO, type FolhaDTO, type ReuniaoSlim, DURACAO_REUNIAO_PADRAO_MIN, minutosParaData } from "@/lib/agenda";
 
@@ -65,21 +65,28 @@ export function AgendaDia({
   const horas: number[] = [];
   for (let h = Math.ceil(minView / 60); h <= Math.floor(maxView / 60); h++) horas.push(h);
 
+  // Cancela qualquer arraste em andamento se o componente desmontar (evita
+  // listeners de window pendurados).
+  const arrasteRef = useRef<AbortController | null>(null);
+  useEffect(() => () => arrasteRef.current?.abort(), []);
+
   function iniciarArraste(e: React.PointerEvent, bloco: Bloco) {
     e.preventDefault();
+    arrasteRef.current?.abort();
+    const ctrl = new AbortController();
+    arrasteRef.current = ctrl;
     const startY = e.clientY;
     const mover = (ev: PointerEvent) => setDrag({ id: bloco.id, deltaMin: snap((ev.clientY - startY) / PX_POR_MIN) });
     const soltar = (ev: PointerEvent) => {
-      window.removeEventListener("pointermove", mover);
-      window.removeEventListener("pointerup", soltar);
+      ctrl.abort();
       setDrag(null);
       const delta = snap((ev.clientY - startY) / PX_POR_MIN);
       if (delta === 0) return;
       const novoMin = Math.max(0, Math.min(24 * 60 - bloco.duracaoMin, bloco.inicioMin + delta));
       onReagendar(bloco.id, minutosParaData(dia, novoMin).toISOString());
     };
-    window.addEventListener("pointermove", mover);
-    window.addEventListener("pointerup", soltar);
+    window.addEventListener("pointermove", mover, { signal: ctrl.signal });
+    window.addEventListener("pointerup", soltar, { signal: ctrl.signal });
   }
 
   const fmtMin = (m: number) => `${String(Math.floor(m / 60)).padStart(2, "0")}:${String(m % 60).padStart(2, "0")}`;

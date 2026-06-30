@@ -60,14 +60,18 @@ export type Intervalo = { inicio: Date; fim: Date };
 
 // ── Helpers de data (comparação por dia local) ─────────────────────
 
+/** Duas datas no mesmo dia local. */
+export function mesmaData(a: Date, b: Date): boolean {
+  return (
+    a.getFullYear() === b.getFullYear() &&
+    a.getMonth() === b.getMonth() &&
+    a.getDate() === b.getDate()
+  );
+}
+
 export function mesmoDia(iso: string | null, dia: Date): boolean {
   if (!iso) return false;
-  const d = new Date(iso);
-  return (
-    d.getFullYear() === dia.getFullYear() &&
-    d.getMonth() === dia.getMonth() &&
-    d.getDate() === dia.getDate()
-  );
+  return mesmaData(new Date(iso), dia);
 }
 
 export function antesDoDia(iso: string | null, dia: Date): boolean {
@@ -191,7 +195,7 @@ export function bucketsGeral(folhas: FolhaDTO[]): BucketsDia {
  *   anteriores ainda não concluídas, só quando o dia visto é hoje).
  */
 export function bucketsDoDia(folhas: FolhaDTO[], dia: Date, hoje: Date): BucketsDia {
-  const ehHoje = mesmoDia(dia.toISOString(), hoje);
+  const ehHoje = mesmaData(dia, hoje);
   const carryIds = new Set<string>();
   const carry: FolhaDTO[] = [];
 
