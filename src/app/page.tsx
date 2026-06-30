@@ -14,6 +14,7 @@ import { KanbanBoard } from "@/components/views/KanbanBoard";
 import { TabelaTarefas } from "@/components/views/TabelaTarefas";
 import { CalendarioTarefas } from "@/components/views/CalendarioTarefas";
 import { PlanejadorDia } from "@/components/views/PlanejadorDia";
+import { PainelMetricas } from "@/components/views/PainelMetricas";
 import { useAgenda } from "@/lib/useAgenda";
 import { type NovaTarefa } from "@/lib/api";
 import { NIVEIS, type Nivel, type Tipo, type TarefaDTO } from "@/lib/tarefas";
@@ -53,9 +54,9 @@ export default function Home() {
     aplicarAgenda(id, dados).then(() => recarregar());
   }
 
-  // Ao entrar na visão Dia, recarrega as folhas (reflete edições de outras visões).
+  // Ao entrar nas visões baseadas em folhas, recarrega (reflete outras visões).
   useEffect(() => {
-    if (visao === "dia") carregarAgenda();
+    if (visao === "dia" || visao === "painel") carregarAgenda();
   }, [visao, carregarAgenda]);
 
   // Remoção a partir da lista (Kanban/Tabela): confirma antes, pois o cascade
@@ -171,6 +172,8 @@ export default function Home() {
               onAplicar={aplicarNoPlanejador}
               onSalvarConfig={salvarConfig}
             />
+          ) : visao === "painel" ? (
+            <PainelMetricas folhas={folhas} carregando={carregandoAgenda} />
           ) : carregando ? (
             <p className="text-sm text-zinc-500">Carregando…</p>
           ) : visao === "kanban" ? (

@@ -226,11 +226,10 @@ async function executar(nome: string, args: Args): Promise<unknown> {
     }
     case "planejar_dia": {
       const dia = new Date();
-      const [raizes, reunioesRow, cfgRow] = await Promise.all([
-        prisma.tarefa.findMany({ where: { tarefaPaiId: null }, include: includeTarefaDetalhe }),
-        prisma.reuniao.findMany({ where: { dataHora: { not: null } }, select: { id: true, titulo: true, dataHora: true, duracaoMin: true } }),
-        prisma.configuracao.upsert({ where: { id: 1 }, create: { id: 1 }, update: {} }),
-      ]);
+      // Sequencial: o pooler usa connection_limit=1 (paralelizar dá P2024).
+      const raizes = await prisma.tarefa.findMany({ where: { tarefaPaiId: null }, include: includeTarefaDetalhe });
+      const reunioesRow = await prisma.reuniao.findMany({ where: { dataHora: { not: null } }, select: { id: true, titulo: true, dataHora: true, duracaoMin: true } });
+      const cfgRow = await prisma.configuracao.upsert({ where: { id: 1 }, create: { id: 1 }, update: {} });
       const cfg: ConfigDTO = {
         expedienteInicioMin: cfgRow.expedienteInicioMin,
         expedienteFimMin: cfgRow.expedienteFimMin,
