@@ -3,7 +3,7 @@
 // Lógica de detalhe de uma tarefa: estado local + operações de mutação no
 // servidor (status, prioridade, prazo, tipo, nível, subtarefas em 2 níveis,
 // agenda e tags). O componente TarefaDetalhe consome este hook e cuida só da UI.
-import { useState } from "react";
+import { useEffect, useState } from "react";
 import { tarefasApi, tagsApi } from "@/lib/api";
 import { statusDerivado, type Status, type TarefaDTO, type TarefaFilhaDTO, type TagDTO } from "@/lib/tarefas";
 
@@ -15,6 +15,17 @@ export function useTarefaDetalhe(
   onTarefasMudaram: () => void,
 ) {
   const [tarefa, setTarefa] = useState<TarefaDTO>(tarefaInicial);
+
+  // A lista (`/api/tarefas`) só inclui 1 nível de filhas. Ao abrir o detalhe,
+  // busca a árvore completa (2 níveis) para que subtarefas e sub-subtarefas
+  // apareçam atualizadas, sem depender do recarregamento da lista.
+  useEffect(() => {
+    let ativo = true;
+    tarefasApi.obter(tarefaInicial.id).then((completa) => {
+      if (ativo) setTarefa(completa);
+    }).catch(() => {});
+    return () => { ativo = false; };
+  }, [tarefaInicial.id]);
 
   async function salvarTitulo(novoTitulo: string) {
     const novo = novoTitulo.trim();
