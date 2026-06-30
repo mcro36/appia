@@ -20,9 +20,6 @@ export type FolhaDTO = {
 
 // Duração padrão de uma folha sem estimativa.
 export const DURACAO_PADRAO_MIN = 10;
-// Expediente padrão (configurável na Fase 2 via Configuracao).
-export const EXPEDIENTE_INICIO_H = 9;
-export const EXPEDIENTE_FIM_H = 18;
 // Duração assumida para uma reunião sem duração informada (bloqueio da agenda).
 export const DURACAO_REUNIAO_PADRAO_MIN = 30;
 
@@ -79,12 +76,6 @@ export function antesDoDia(iso: string | null, dia: Date): boolean {
   const a = new Date(d.getFullYear(), d.getMonth(), d.getDate());
   const b = new Date(dia.getFullYear(), dia.getMonth(), dia.getDate());
   return a.getTime() < b.getTime();
-}
-
-export function inicioDoDia(dia: Date, hora = EXPEDIENTE_INICIO_H): Date {
-  const d = new Date(dia);
-  d.setHours(hora, 0, 0, 0);
-  return d;
 }
 
 /** Constrói uma data no dia informado a partir de minutos desde a meia-noite. */
@@ -171,20 +162,6 @@ export function capacidadeDoDia(
   for (const b of blocosTarefa) if (mesmoDia(b.dataInicio, dia)) planejadoMin += b.duracaoMin ?? cfg.duracaoPadraoMin;
 
   return { planejadoMin, disponivelMin };
-}
-
-// ── Distribuição (stub da Fase 1: empilha após o último bloco) ─────
-// A Fase 2 substitui por proximaVaga() ciente de reuniões/almoço/buffer.
-
-export function proximoInicioSimples(dia: Date, blocos: FolhaDTO[], agora: Date): string {
-  let inicio = inicioDoDia(dia);
-  if (mesmoDia(agora.toISOString(), dia) && agora > inicio) inicio = new Date(agora);
-  for (const b of blocos) {
-    if (!b.dataInicio) continue;
-    const fim = new Date(new Date(b.dataInicio).getTime() + (b.duracaoMin ?? DURACAO_PADRAO_MIN) * 60000);
-    if (fim > inicio) inicio = fim;
-  }
-  return inicio.toISOString();
 }
 
 // ── Agrupamento em colunas (a fazer / em andamento / concluído) ────

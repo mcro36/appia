@@ -4,21 +4,22 @@ import { useEffect, useMemo, useState } from "react";
 import { format, addDays, isToday } from "date-fns";
 import { ptBR } from "date-fns/locale";
 import {
-  ChevronLeft, ChevronRight, ChevronsRight, Clock, AlertTriangle, LayoutGrid, Settings2, Sparkles, Sunset,
-  Play, Square, Timer, CalendarRange, Lock,
+  ChevronLeft, ChevronRight, AlertTriangle, LayoutGrid, Settings2, Sparkles, Sunset,
+  Square, Timer, CalendarRange,
 } from "lucide-react";
 import {
   bucketsDoDia, bucketsGeral, agruparPorProjeto, ocupadosDoDia, proximaVaga, capacidadeDoDia,
-  mesmoDia, DURACAO_PADRAO_MIN, type FolhaDTO, type ReuniaoSlim, type ConfigDTO,
+  mesmoDia, type FolhaDTO, type ReuniaoSlim, type ConfigDTO,
 } from "@/lib/agenda";
 import type { Status } from "@/lib/tarefas";
-import {
-  STATUS_COR, STATUS_LABEL, PRIORIDADE_COR, PRIORIDADE_LABEL, NIVEL_COR, NIVEL_LABEL,
-} from "@/lib/tarefas-display";
-import { formatarDuracao, minutosParaHHMM, hhmmParaMinutos } from "@/lib/datas";
+import { STATUS_COR, STATUS_LABEL, NIVEL_COR, NIVEL_LABEL } from "@/lib/tarefas-display";
+import { formatarDuracao } from "@/lib/datas";
 import type { MudancaFolha } from "@/lib/useAgenda";
 import { AgendaDia } from "@/components/views/AgendaDia";
 import { VisaoSemana } from "@/components/views/VisaoSemana";
+import { CartaoFolha } from "@/components/planejador/CartaoFolha";
+import { EncerrarPopover } from "@/components/planejador/EncerrarPopover";
+import { ConfigPopover } from "@/components/planejador/ConfigPopover";
 
 type Props = {
   folhas: FolhaDTO[];
@@ -35,6 +36,10 @@ const COLUNAS: { status: Status; vazio: string }[] = [
   { status: "concluido", vazio: "Nada concluído" },
 ];
 
+// Foco persistido: o cronômetro sobrevive a troca de visão e reload da página.
+const FOCO_KEY = "planejador.foco";
+type Foco = { id: string; titulo: string; inicioTs: number };
+
 export function PlanejadorDia({ folhas, reunioes, config, carregando, onAplicar, onSalvarConfig }: Props) {
   const [modo, setModo] = useState<"geral" | "dia" | "semana">("dia");
   const [dia, setDia] = useState<Date>(() => new Date());
@@ -42,7 +47,7 @@ export function PlanejadorDia({ folhas, reunioes, config, carregando, onAplicar,
   const [colunaAlvo, setColunaAlvo] = useState<Status | null>(null);
   const [configAberta, setConfigAberta] = useState(false);
   const [encerrarAberto, setEncerrarAberto] = useState(false);
-  const [foco, setFoco] = useState<{ id: string; titulo: string; inicioTs: number } | null>(null);
+  const [foco, setFoco] = useState<Foco | null>(null);
   const [, setTick] = useState(0);
 
   // Tique de 1s para atualizar o cronômetro enquanto há foco ativo.
@@ -50,6 +55,21 @@ export function PlanejadorDia({ folhas, reunioes, config, carregando, onAplicar,
     if (!foco) return;
     const t = setInterval(() => setTick((x) => x + 1), 1000);
     return () => clearInterval(t);
+  }, [foco]);
+
+  // Restaura o foco salvo (ao montar) e persiste mudanças — evita perder o
+  // tempo decorrido ao trocar de visão ou recarregar a página.
+  useEffect(() => {
+    try {
+      const s = localStorage.getItem(FOCO_KEY);
+      if (s) setFoco(JSON.parse(s) as Foco);
+    } catch { /* ignore */ }
+  }, []);
+  useEffect(() => {
+    try {
+      if (foco) localStorage.setItem(FOCO_KEY, JSON.stringify(foco));
+      else localStorage.removeItem(FOCO_KEY);
+    } catch { /* ignore */ }
   }, [foco]);
 
   const buckets = useMemo(
@@ -76,7 +96,7 @@ export function PlanejadorDia({ folhas, reunioes, config, carregando, onAplicar,
     if (coluna === "em_andamento") {
       const blocos = folhas.filter((x) => x.id !== id && x.status === "em_andamento");
       const ocupados = ocupadosDoDia(reunioes, blocos, diaAlvo, config);
-      const dur = f.duracaoMin ?? config.duracaoPadraoMin ?? DURACAO_PADRAO_MIN;
+      const dur = f.duracaoMin ?? config.duracaoPadraoMin;
       const { inicio } = proximaVaga(diaAlvo, ocupados, dur, new Date(), config);
       onAplicar(id, { status: "em_andamento", dataInicio: inicio, duracaoMin: dur });
     } else if (coluna === "a_fazer") {
@@ -105,7 +125,7 @@ export function PlanejadorDia({ folhas, reunioes, config, carregando, onAplicar,
       .map((x) => ({ dataInicio: x.dataInicio, duracaoMin: x.duracaoMin }));
     for (const f of pendentes) {
       const ocupados = ocupadosDoDia(reunioes, blocos, diaAlvo, config);
-      const dur = f.duracaoMin ?? config.duracaoPadraoMin ?? DURACAO_PADRAO_MIN;
+      const dur = f.duracaoMin ?? config.duracaoPadraoMin;
       const { inicio, estouro } = proximaVaga(diaAlvo, ocupados, dur, new Date(), config);
       if (estouro) break;
       onAplicar(f.id, { status: "em_andamento", dataInicio: inicio, duracaoMin: dur });
@@ -330,7 +350,7 @@ export function PlanejadorDia({ folhas, reunioes, config, carregando, onAplicar,
                           </div>
                           <div className="flex flex-col gap-2">
                             {grupo.itens.map((f) => (
-                              <Cartao
+                              <CartaoFolha
                                 key={f.id}
                                 folha={f}
                                 carryOver={buckets.carryOverIds.has(f.id)}
@@ -342,7 +362,7 @@ export function PlanejadorDia({ folhas, reunioes, config, carregando, onAplicar,
                         </div>
                       ))
                     : itens.map((f) => (
-                        <Cartao
+                        <CartaoFolha
                           key={f.id}
                           folha={f}
                           carryOver={false}
@@ -372,204 +392,3 @@ export function PlanejadorDia({ folhas, reunioes, config, carregando, onAplicar,
   );
 }
 
-function Cartao({
-  folha,
-  carryOver,
-  onDragStart,
-  onAdiar,
-  onFoco,
-  focando,
-}: {
-  folha: FolhaDTO;
-  carryOver: boolean;
-  onDragStart: () => void;
-  onAdiar?: () => void;
-  onFoco?: () => void;
-  focando?: boolean;
-}) {
-  const concluida = folha.status === "concluido";
-  return (
-    <div
-      draggable
-      onDragStart={onDragStart}
-      className={`group cursor-grab rounded-lg border bg-white p-2.5 shadow-sm transition-shadow hover:shadow-md active:cursor-grabbing dark:bg-zinc-900 ${
-        focando ? "border-indigo-400 ring-1 ring-indigo-300" : "border-black/10 dark:border-white/10"
-      }`}
-    >
-      <div className="flex items-start gap-2">
-        {folha.prazoRigido && (
-          <Lock size={11} className="mt-0.5 shrink-0 text-red-500" aria-label="Prazo rígido" />
-        )}
-        <p className={`flex-1 text-sm leading-snug ${concluida ? "text-zinc-400 line-through" : "font-medium"}`}>
-          {folha.titulo}
-        </p>
-        {onFoco && !focando && (
-          <button
-            onClick={(e) => { e.stopPropagation(); onFoco(); }}
-            title="Iniciar foco"
-            className="shrink-0 rounded p-0.5 text-zinc-300 opacity-0 transition hover:text-indigo-600 group-hover:opacity-100"
-          >
-            <Play size={14} />
-          </button>
-        )}
-        {onAdiar && (
-          <button
-            onClick={(e) => { e.stopPropagation(); onAdiar(); }}
-            title="Adiar para amanhã"
-            className="shrink-0 rounded p-0.5 text-zinc-300 opacity-0 transition hover:text-indigo-600 group-hover:opacity-100"
-          >
-            <ChevronsRight size={15} />
-          </button>
-        )}
-      </div>
-
-      <div className="mt-1.5 flex flex-wrap items-center gap-1.5">
-        <span className={`rounded-full px-2 py-0.5 text-[10px] font-medium ${PRIORIDADE_COR[folha.prioridade]}`}>
-          {PRIORIDADE_LABEL[folha.prioridade]}
-        </span>
-        {folha.dataInicio && (
-          <span className="inline-flex items-center gap-1 text-[11px] text-indigo-600">
-            <Clock size={10} />
-            {format(new Date(folha.dataInicio), "HH:mm")}
-            {folha.duracaoMin ? ` · ${formatarDuracao(folha.duracaoMin)}` : ""}
-          </span>
-        )}
-        {folha.tempoGastoMin != null && folha.tempoGastoMin > 0 && (
-          <span className="inline-flex items-center gap-1 text-[11px] text-emerald-600" title="Tempo real registrado">
-            <Timer size={10} /> {formatarDuracao(folha.tempoGastoMin)}
-          </span>
-        )}
-        {carryOver && (
-          <span className="inline-flex items-center gap-1 text-[11px] font-medium text-red-600">
-            <AlertTriangle size={10} /> atrasada
-          </span>
-        )}
-      </div>
-    </div>
-  );
-}
-
-function EncerrarPopover({
-  concluidas,
-  emAndamento,
-  onFechar,
-  onMoverAmanha,
-}: {
-  concluidas: number;
-  emAndamento: number;
-  onFechar: () => void;
-  onMoverAmanha: () => void;
-}) {
-  return (
-    <>
-      <div className="fixed inset-0 z-20" onClick={onFechar} />
-      <div className="absolute left-0 z-30 mt-1 w-60 rounded-xl border border-black/10 bg-white p-3 shadow-xl dark:border-white/10 dark:bg-zinc-900">
-        <p className="mb-2 text-xs font-semibold">Encerrar o dia</p>
-        <div className="mb-3 space-y-1 text-xs text-zinc-600 dark:text-zinc-300">
-          <p className="flex items-center justify-between">
-            <span>Concluídas hoje</span>
-            <span className="font-semibold text-emerald-600">{concluidas}</span>
-          </p>
-          <p className="flex items-center justify-between">
-            <span>Em andamento (não concluídas)</span>
-            <span className="font-semibold text-amber-600">{emAndamento}</span>
-          </p>
-        </div>
-        <button
-          onClick={onMoverAmanha}
-          disabled={emAndamento === 0}
-          className="w-full rounded-md bg-indigo-600 py-1.5 text-xs font-medium text-white hover:bg-indigo-500 disabled:opacity-40"
-        >
-          Mover {emAndamento} para amanhã
-        </button>
-      </div>
-    </>
-  );
-}
-
-function ConfigPopover({
-  config,
-  onFechar,
-  onSalvar,
-}: {
-  config: ConfigDTO;
-  onFechar: () => void;
-  onSalvar: (dados: Partial<ConfigDTO>) => void;
-}) {
-  const [expIni, setExpIni] = useState(minutosParaHHMM(config.expedienteInicioMin));
-  const [expFim, setExpFim] = useState(minutosParaHHMM(config.expedienteFimMin));
-  const [almoco, setAlmoco] = useState(config.almocoInicioMin != null && config.almocoFimMin != null);
-  const [almIni, setAlmIni] = useState(minutosParaHHMM(config.almocoInicioMin ?? 12 * 60));
-  const [almFim, setAlmFim] = useState(minutosParaHHMM(config.almocoFimMin ?? 13 * 60));
-  const [dur, setDur] = useState(String(config.duracaoPadraoMin));
-  const [buffer, setBuffer] = useState(String(config.bufferMin));
-
-  function salvar() {
-    const dados: Partial<ConfigDTO> = {
-      expedienteInicioMin: hhmmParaMinutos(expIni) ?? config.expedienteInicioMin,
-      expedienteFimMin: hhmmParaMinutos(expFim) ?? config.expedienteFimMin,
-      almocoInicioMin: almoco ? hhmmParaMinutos(almIni) : null,
-      almocoFimMin: almoco ? hhmmParaMinutos(almFim) : null,
-      duracaoPadraoMin: parseInt(dur, 10) || config.duracaoPadraoMin,
-      bufferMin: parseInt(buffer, 10) || 0,
-    };
-    onSalvar(dados);
-  }
-
-  const campo = "w-full rounded-md bg-zinc-50 px-2 py-1 text-xs ring-1 ring-black/10 outline-none focus:ring-indigo-400 dark:bg-zinc-800 dark:ring-white/10";
-  const rotulo = "mb-0.5 block text-[11px] font-medium text-zinc-500";
-
-  return (
-    <>
-      <div className="fixed inset-0 z-20" onClick={onFechar} />
-      <div className="absolute left-0 z-30 mt-1 w-64 rounded-xl border border-black/10 bg-white p-3 shadow-xl dark:border-white/10 dark:bg-zinc-900">
-        <p className="mb-2 text-xs font-semibold">Expediente</p>
-        <div className="mb-2 grid grid-cols-2 gap-2">
-          <div>
-            <label className={rotulo}>Início</label>
-            <input type="time" value={expIni} onChange={(e) => setExpIni(e.target.value)} className={campo} />
-          </div>
-          <div>
-            <label className={rotulo}>Fim</label>
-            <input type="time" value={expFim} onChange={(e) => setExpFim(e.target.value)} className={campo} />
-          </div>
-        </div>
-
-        <label className="mb-2 flex items-center gap-2 text-xs text-zinc-600 dark:text-zinc-300">
-          <input type="checkbox" checked={almoco} onChange={(e) => setAlmoco(e.target.checked)} />
-          Reservar almoço
-        </label>
-        {almoco && (
-          <div className="mb-2 grid grid-cols-2 gap-2">
-            <div>
-              <label className={rotulo}>Almoço início</label>
-              <input type="time" value={almIni} onChange={(e) => setAlmIni(e.target.value)} className={campo} />
-            </div>
-            <div>
-              <label className={rotulo}>Almoço fim</label>
-              <input type="time" value={almFim} onChange={(e) => setAlmFim(e.target.value)} className={campo} />
-            </div>
-          </div>
-        )}
-
-        <div className="mb-3 grid grid-cols-2 gap-2">
-          <div>
-            <label className={rotulo}>Duração padrão (min)</label>
-            <input type="number" min={5} step={5} value={dur} onChange={(e) => setDur(e.target.value)} className={campo} />
-          </div>
-          <div>
-            <label className={rotulo}>Buffer (min)</label>
-            <input type="number" min={0} step={5} value={buffer} onChange={(e) => setBuffer(e.target.value)} className={campo} />
-          </div>
-        </div>
-
-        <button
-          onClick={salvar}
-          className="w-full rounded-md bg-indigo-600 py-1.5 text-xs font-medium text-white hover:bg-indigo-500"
-        >
-          Salvar
-        </button>
-      </div>
-    </>
-  );
-}
