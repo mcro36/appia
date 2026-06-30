@@ -38,6 +38,31 @@ estrutura, agenda e organiza tudo automaticamente — com lembretes de prazo e v
 - Anexos e notas por tarefa
 - Multiusuário (autenticação + isolamento de dados)
 
+## Planejador diário (time-blocking) — IMPLEMENTADO
+Visão "Dia" inspirada em Sunsama/Motion: planejar o dia distribuindo as tarefas
+pendentes em blocos de horário, em volta dos compromissos fixos (reuniões).
+Unidade agendável = tarefa-folha (atividade simples ou subtarefa sem filhos).
+O "dia" de uma tarefa é a data do seu `dataInicio` (sem campo extra).
+
+- **Fase 1** — Visão Dia (4ª no seletor) com barra `Geral | << | Hoje | >>`,
+  3 colunas escopadas ao dia (a fazer agrupado por projeto / em andamento /
+  concluído), carry-over de incompletas e snooze ("adiar para amanhã").
+- **Fase 2** — Distribuição automática (`agenda.ts` `proximaVaga`) ao soltar em
+  "em andamento": encaixa nos buracos entre reuniões e almoço, no expediente,
+  começando de "agora" se hoje. Modelo `Configuracao` (expediente/almoço/duração
+  padrão/buffer) editável; indicador de capacidade "planejado/livre".
+- **Fase 3** — Timeline visual do dia (`AgendaDia`): reuniões + blocos de tarefa,
+  almoço sombreado; arrastar bloco reagenda (snap 5min).
+- **Fase 4** — `concluidaEm` (Concluído-do-dia confiável); IA `planejar_dia`
+  (function calling) + botão determinístico "Planejar dia"; ritual "Encerrar o
+  dia"; duração estimada pela IA ao criar.
+- **Fase 5** — Cronômetro de foco + `tempoGastoMin` (real vs estimado); hábitos:
+  concluir tarefa recorrente rola para a próxima ocorrência.
+- **Fase 6** — Painel de métricas + matriz de Eisenhower; visão Semana; prazo
+  rígido vs flexível (`prazoRigido`, prioriza no planejamento).
+
+Fora do escopo (Futuro): integração Google/Outlook Calendar e multiusuário.
+
 ## Design / experiência (premissa)
 A aplicação se inspira em **Monday, Jira e ferramentas similares** de gestão de trabalho:
 - Sidebar de navegação à esquerda + barra de ferramentas no topo
