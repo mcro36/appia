@@ -6,6 +6,8 @@ import {
 } from "@google/generative-ai";
 import { prisma } from "@/lib/prisma";
 import { PRIORIDADES, RECORRENCIAS, STATUS, TIPOS } from "@/lib/tarefas";
+import { includeTarefaDetalhe, flattenFolhas } from "@/lib/mapTarefa";
+import { ocupadosDoDia, proximaVaga, mesmoDia, type ConfigDTO, type ReuniaoSlim } from "@/lib/agenda";
 
 const MODELO = "gemini-2.5-flash";
 
@@ -47,6 +49,7 @@ const funcoes: FunctionDeclaration[] = [
         prioridade: { type: SchemaType.STRING, format: "enum", enum: [...PRIORIDADES] },
         status: { type: SchemaType.STRING, format: "enum", enum: [...STATUS] },
         recorrencia: { type: SchemaType.STRING, format: "enum", enum: [...RECORRENCIAS] },
+        duracaoMin: { type: SchemaType.NUMBER, description: "Duração estimada em minutos para executar. Estime um valor realista (ex.: 30, 60) quando o usuário não informar." },
         tags: { type: SchemaType.STRING, description: "Tags separadas por vírgula (ex.: 'infraestrutura,rede'). Opcional." },
       },
       required: ["titulo"],
@@ -88,6 +91,12 @@ const funcoes: FunctionDeclaration[] = [
       },
       required: ["id"],
     },
+  },
+  {
+    name: "planejar_dia",
+    description:
+      "Distribui as tarefas pendentes de hoje na agenda, encaixando nos horários livres entre reuniões e almoço, dentro do expediente, por ordem de prioridade e prazo. Use quando o usuário pedir para planejar/organizar o dia.",
+    parameters: { type: SchemaType.OBJECT, properties: {} },
   },
   {
     name: "concluir_tarefa",
@@ -168,6 +177,7 @@ async function executar(nome: string, args: Args): Promise<unknown> {
           prioridade: str(args.prioridade) ?? "media",
           status: str(args.status) ?? "a_fazer",
           recorrencia: str(args.recorrencia) ?? "none",
+          duracaoMin: typeof args.duracaoMin === "number" ? Math.round(args.duracaoMin) : null,
           tags: tagIds.length ? { create: tagIds.map((tagId) => ({ tagId })) } : undefined,
         },
       });
@@ -197,7 +207,10 @@ async function executar(nome: string, args: Args): Promise<unknown> {
       if (args.descricao !== undefined) data.descricao = str(args.descricao) ?? null;
       if (args.prazo !== undefined) data.prazo = dataOuNull(args.prazo);
       if (args.prioridade !== undefined) data.prioridade = str(args.prioridade);
-      if (args.status !== undefined) data.status = str(args.status);
+      if (args.status !== undefined) {
+        data.status = str(args.status);
+        data.concluidaEm = str(args.status) === "concluido" ? new Date() : null;
+      }
       if (args.recorrencia !== undefined) data.recorrencia = str(args.recorrencia);
       if (args.tags !== undefined) {
         const tagIds = await resolverTags(str(args.tags));
@@ -210,11 +223,54 @@ async function executar(nome: string, args: Args): Promise<unknown> {
         return { erro: "Tarefa não encontrada." };
       }
     }
+    case "planejar_dia": {
+      const dia = new Date();
+      const [raizes, reunioesRow, cfgRow] = await Promise.all([
+        prisma.tarefa.findMany({ where: { tarefaPaiId: null }, include: includeTarefaDetalhe }),
+        prisma.reuniao.findMany({ where: { dataHora: { not: null } }, select: { id: true, titulo: true, dataHora: true, duracaoMin: true } }),
+        prisma.configuracao.upsert({ where: { id: 1 }, create: { id: 1 }, update: {} }),
+      ]);
+      const cfg: ConfigDTO = {
+        expedienteInicioMin: cfgRow.expedienteInicioMin,
+        expedienteFimMin: cfgRow.expedienteFimMin,
+        almocoInicioMin: cfgRow.almocoInicioMin,
+        almocoFimMin: cfgRow.almocoFimMin,
+        duracaoPadraoMin: cfgRow.duracaoPadraoMin,
+        bufferMin: cfgRow.bufferMin,
+      };
+      const reunioes: ReuniaoSlim[] = reunioesRow.map((r) => ({
+        id: r.id, titulo: r.titulo, dataHora: r.dataHora!.toISOString(), duracaoMin: r.duracaoMin,
+      }));
+      const todas = flattenFolhas(raizes);
+      // blocos já ocupados hoje (tarefas em andamento agendadas para hoje)
+      const blocos = todas
+        .filter((f) => f.status === "em_andamento" && mesmoDia(f.dataInicio, dia))
+        .map((f) => ({ dataInicio: f.dataInicio as string | null, duracaoMin: f.duracaoMin as number | null }));
+      // pendentes por prioridade (alta→baixa) e prazo (mais cedo primeiro)
+      const ordemPri: Record<string, number> = { alta: 0, media: 1, baixa: 2 };
+      const pendentes = todas
+        .filter((f) => f.status === "a_fazer")
+        .sort((a, b) =>
+          (ordemPri[a.prioridade] - ordemPri[b.prioridade]) ||
+          (a.prazo ?? "9999").localeCompare(b.prazo ?? "9999"));
+
+      const agendadas: { titulo: string; inicio: string }[] = [];
+      for (const f of pendentes) {
+        const ocup = ocupadosDoDia(reunioes, blocos, dia, cfg);
+        const dur = f.duracaoMin ?? cfg.duracaoPadraoMin;
+        const { inicio, estouro } = proximaVaga(dia, ocup, dur, new Date(), cfg);
+        if (estouro) break; // dia cheio
+        await prisma.tarefa.update({ where: { id: f.id }, data: { status: "em_andamento", dataInicio: new Date(inicio), duracaoMin: dur } });
+        blocos.push({ dataInicio: inicio, duracaoMin: dur });
+        agendadas.push({ titulo: f.titulo, inicio });
+      }
+      return { ok: true, agendadas: agendadas.length, restantes: pendentes.length - agendadas.length, itens: agendadas };
+    }
     case "concluir_tarefa": {
       const id = str(args.id);
       if (!id) return { erro: "id é obrigatório." };
       try {
-        const t = await prisma.tarefa.update({ where: { id }, data: { status: "concluido" } });
+        const t = await prisma.tarefa.update({ where: { id }, data: { status: "concluido", concluidaEm: new Date() } });
         return { ok: true, id: t.id, titulo: t.titulo };
       } catch {
         return { erro: "Tarefa não encontrada." };
@@ -296,6 +352,13 @@ function instrucaoSistema(snapshot: string): string {
     "- Se o pedido JÁ vier completo com título, prazo e demais detalhes, crie direto.",
     "- Ao criar, coloque informações extras na descrição (participantes, local, links, contexto).",
     "  Ex.: 'Com: João · Local: Google Meet · Remoto'.",
+    "- Ao criar tarefas, estime uma duração realista (duracaoMin) quando o usuário não",
+    "  informar — necessária para o planejamento do dia.",
+    "",
+    "Planejamento do dia:",
+    "- Quando o usuário pedir para 'planejar/organizar meu dia', chame planejar_dia: ele",
+    "  distribui as tarefas pendentes nos horários livres respeitando reuniões e almoço.",
+    "- Depois, resuma quantas foram agendadas e quantas ficaram de fora por falta de tempo.",
   ].join("\n");
 }
 

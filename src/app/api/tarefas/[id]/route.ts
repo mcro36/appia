@@ -49,6 +49,8 @@ export async function PATCH(req: Request, { params }: Ctx) {
     if (!isStatus(body.status))
       return NextResponse.json({ erro: "Status inválido." }, { status: 400 });
     data.status = body.status;
+    // Carimba (ou limpa) o horário de conclusão para a visão "Concluído do dia".
+    data.concluidaEm = body.status === "concluido" ? new Date() : null;
   }
   if (body.recorrencia !== undefined) {
     if (!isRecorrencia(body.recorrencia))

@@ -43,6 +43,7 @@ model Tarefa {
   nivel          String          @default("operacional")
   dataInicio     DateTime?
   duracaoMin     Int?
+  concluidaEm    DateTime?
   criadaEm       DateTime        @default(now())
   atualizadaEm   DateTime        @updatedAt
   tags           TarefaTag[]

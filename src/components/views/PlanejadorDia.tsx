@@ -4,7 +4,7 @@ import { useMemo, useState } from "react";
 import { format, addDays, isToday } from "date-fns";
 import { ptBR } from "date-fns/locale";
 import {
-  ChevronLeft, ChevronRight, ChevronsRight, Clock, AlertTriangle, LayoutGrid, Settings2,
+  ChevronLeft, ChevronRight, ChevronsRight, Clock, AlertTriangle, LayoutGrid, Settings2, Sparkles, Sunset,
 } from "lucide-react";
 import {
   bucketsDoDia, bucketsGeral, agruparPorProjeto, ocupadosDoDia, proximaVaga, capacidadeDoDia,
@@ -39,6 +39,7 @@ export function PlanejadorDia({ folhas, reunioes, config, carregando, onAplicar,
   const [arrastando, setArrastando] = useState<string | null>(null);
   const [colunaAlvo, setColunaAlvo] = useState<Status | null>(null);
   const [configAberta, setConfigAberta] = useState(false);
+  const [encerrarAberto, setEncerrarAberto] = useState(false);
 
   const buckets = useMemo(
     () => (modo === "geral" ? bucketsGeral(folhas) : bucketsDoDia(folhas, dia, new Date())),
@@ -79,6 +80,36 @@ export function PlanejadorDia({ folhas, reunioes, config, carregando, onAplicar,
     onAplicar(f.id, { status: "em_andamento", dataInicio: addDays(base, 1).toISOString() });
   }
 
+  // Distribui as pendentes nos horários livres do dia até encher o expediente.
+  function planejarDia() {
+    const ordemPri: Record<string, number> = { alta: 0, media: 1, baixa: 2 };
+    const pendentes = buckets.aFazer
+      .filter((f) => f.status === "a_fazer")
+      .sort((a, b) =>
+        (ordemPri[a.prioridade] - ordemPri[b.prioridade]) ||
+        (a.prazo ?? "9999").localeCompare(b.prazo ?? "9999"));
+    const blocos = folhas
+      .filter((x) => x.status === "em_andamento" && mesmoDia(x.dataInicio, diaAlvo))
+      .map((x) => ({ dataInicio: x.dataInicio, duracaoMin: x.duracaoMin }));
+    for (const f of pendentes) {
+      const ocupados = ocupadosDoDia(reunioes, blocos, diaAlvo, config);
+      const dur = f.duracaoMin ?? config.duracaoPadraoMin ?? DURACAO_PADRAO_MIN;
+      const { inicio, estouro } = proximaVaga(diaAlvo, ocupados, dur, new Date(), config);
+      if (estouro) break;
+      onAplicar(f.id, { status: "em_andamento", dataInicio: inicio, duracaoMin: dur });
+      blocos.push({ dataInicio: inicio, duracaoMin: dur });
+    }
+  }
+
+  // Encerramento: leva as tarefas em andamento não concluídas para amanhã.
+  function moverPendentesAmanha() {
+    for (const f of buckets.emAndamento) {
+      const base = f.dataInicio ? new Date(f.dataInicio) : new Date(diaAlvo);
+      onAplicar(f.id, { dataInicio: addDays(base, 1).toISOString() });
+    }
+    setEncerrarAberto(false);
+  }
+
   const rotuloDia = isToday(dia) ? "Hoje" : format(dia, "EEE, dd 'de' MMM", { locale: ptBR });
 
   return (
@@ -114,17 +145,46 @@ export function PlanejadorDia({ folhas, reunioes, config, carregando, onAplicar,
         </div>
 
         {modo === "dia" && (
-          <span
-            className={`hidden items-center gap-1 rounded-lg px-2 py-1 text-xs sm:inline-flex ${
-              sobrecarregado
-                ? "bg-red-50 text-red-700 dark:bg-red-950/40 dark:text-red-300"
-                : "bg-black/5 text-zinc-500 dark:bg-white/10 dark:text-zinc-400"
-            }`}
-            title="Tempo planejado vs. disponível no dia"
-          >
-            {sobrecarregado && <AlertTriangle size={12} />}
-            {formatarDuracao(capacidade.planejadoMin)} / {formatarDuracao(capacidade.disponivelMin)} livre
-          </span>
+          <>
+            <button
+              onClick={planejarDia}
+              className="inline-flex items-center gap-1.5 rounded-lg border border-indigo-200 bg-indigo-50 px-2.5 py-1.5 text-sm text-indigo-700 transition-colors hover:bg-indigo-100 dark:border-indigo-900 dark:bg-indigo-950/40 dark:text-indigo-300"
+              title="Distribuir as pendentes nos horários livres do dia"
+            >
+              <Sparkles size={15} /> Planejar dia
+            </button>
+
+            <div className="relative">
+              <button
+                onClick={() => setEncerrarAberto((v) => !v)}
+                aria-label="Encerrar dia"
+                title="Encerrar o dia"
+                className="rounded-lg border border-black/10 p-1.5 text-zinc-600 hover:bg-black/5 dark:border-white/10 dark:text-zinc-300 dark:hover:bg-white/5"
+              >
+                <Sunset size={16} />
+              </button>
+              {encerrarAberto && (
+                <EncerrarPopover
+                  concluidas={buckets.concluido.length}
+                  emAndamento={buckets.emAndamento.length}
+                  onFechar={() => setEncerrarAberto(false)}
+                  onMoverAmanha={moverPendentesAmanha}
+                />
+              )}
+            </div>
+
+            <span
+              className={`hidden items-center gap-1 rounded-lg px-2 py-1 text-xs sm:inline-flex ${
+                sobrecarregado
+                  ? "bg-red-50 text-red-700 dark:bg-red-950/40 dark:text-red-300"
+                  : "bg-black/5 text-zinc-500 dark:bg-white/10 dark:text-zinc-400"
+              }`}
+              title="Tempo planejado vs. disponível no dia"
+            >
+              {sobrecarregado && <AlertTriangle size={12} />}
+              {formatarDuracao(capacidade.planejadoMin)} / {formatarDuracao(capacidade.disponivelMin)} livre
+            </span>
+          </>
         )}
 
         <div className="ml-auto flex items-center gap-1">
@@ -297,6 +357,44 @@ function Cartao({
         )}
       </div>
     </div>
+  );
+}
+
+function EncerrarPopover({
+  concluidas,
+  emAndamento,
+  onFechar,
+  onMoverAmanha,
+}: {
+  concluidas: number;
+  emAndamento: number;
+  onFechar: () => void;
+  onMoverAmanha: () => void;
+}) {
+  return (
+    <>
+      <div className="fixed inset-0 z-20" onClick={onFechar} />
+      <div className="absolute left-0 z-30 mt-1 w-60 rounded-xl border border-black/10 bg-white p-3 shadow-xl dark:border-white/10 dark:bg-zinc-900">
+        <p className="mb-2 text-xs font-semibold">Encerrar o dia</p>
+        <div className="mb-3 space-y-1 text-xs text-zinc-600 dark:text-zinc-300">
+          <p className="flex items-center justify-between">
+            <span>Concluídas hoje</span>
+            <span className="font-semibold text-emerald-600">{concluidas}</span>
+          </p>
+          <p className="flex items-center justify-between">
+            <span>Em andamento (não concluídas)</span>
+            <span className="font-semibold text-amber-600">{emAndamento}</span>
+          </p>
+        </div>
+        <button
+          onClick={onMoverAmanha}
+          disabled={emAndamento === 0}
+          className="w-full rounded-md bg-indigo-600 py-1.5 text-xs font-medium text-white hover:bg-indigo-500 disabled:opacity-40"
+        >
+          Mover {emAndamento} para amanhã
+        </button>
+      </div>
+    </>
   );
 }
 
