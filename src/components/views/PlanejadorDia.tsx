@@ -5,7 +5,7 @@ import { format, addDays, isToday } from "date-fns";
 import { ptBR } from "date-fns/locale";
 import {
   ChevronLeft, ChevronRight, ChevronsRight, Clock, AlertTriangle, LayoutGrid, Settings2, Sparkles, Sunset,
-  Play, Square, Timer,
+  Play, Square, Timer, CalendarRange,
 } from "lucide-react";
 import {
   bucketsDoDia, bucketsGeral, agruparPorProjeto, ocupadosDoDia, proximaVaga, capacidadeDoDia,
@@ -18,6 +18,7 @@ import {
 import { formatarDuracao, minutosParaHHMM, hhmmParaMinutos } from "@/lib/datas";
 import type { MudancaFolha } from "@/lib/useAgenda";
 import { AgendaDia } from "@/components/views/AgendaDia";
+import { VisaoSemana } from "@/components/views/VisaoSemana";
 
 type Props = {
   folhas: FolhaDTO[];
@@ -35,7 +36,7 @@ const COLUNAS: { status: Status; vazio: string }[] = [
 ];
 
 export function PlanejadorDia({ folhas, reunioes, config, carregando, onAplicar, onSalvarConfig }: Props) {
-  const [modo, setModo] = useState<"geral" | "dia">("dia");
+  const [modo, setModo] = useState<"geral" | "dia" | "semana">("dia");
   const [dia, setDia] = useState<Date>(() => new Date());
   const [arrastando, setArrastando] = useState<string | null>(null);
   const [colunaAlvo, setColunaAlvo] = useState<Status | null>(null);
@@ -170,6 +171,17 @@ export function PlanejadorDia({ folhas, reunioes, config, carregando, onAplicar,
           <LayoutGrid size={15} /> Geral
         </button>
 
+        <button
+          onClick={() => setModo("semana")}
+          className={`inline-flex items-center gap-1.5 rounded-lg border px-3 py-1.5 text-sm transition-colors ${
+            modo === "semana"
+              ? "border-indigo-600 bg-indigo-600 text-white"
+              : "border-black/10 text-zinc-600 hover:bg-black/5 dark:border-white/10 dark:text-zinc-300 dark:hover:bg-white/5"
+          }`}
+        >
+          <CalendarRange size={15} /> Semana
+        </button>
+
         <div className="relative">
           <button
             onClick={() => setConfigAberta((v) => !v)}
@@ -232,25 +244,25 @@ export function PlanejadorDia({ folhas, reunioes, config, carregando, onAplicar,
 
         <div className="ml-auto flex items-center gap-1">
           <button
-            onClick={() => { setModo("dia"); setDia((d) => addDays(d, -1)); }}
-            aria-label="Dia anterior"
+            onClick={() => { const p = modo === "semana" ? -7 : -1; if (modo !== "semana") setModo("dia"); setDia((d) => addDays(d, p)); }}
+            aria-label="Anterior"
             className="rounded-lg border border-black/10 p-1.5 text-zinc-600 hover:bg-black/5 dark:border-white/10 dark:text-zinc-300 dark:hover:bg-white/5"
           >
             <ChevronLeft size={16} />
           </button>
           <button
-            onClick={() => { setModo("dia"); setDia(new Date()); }}
+            onClick={() => { if (modo !== "semana") setModo("dia"); setDia(new Date()); }}
             className={`rounded-lg border px-3 py-1.5 text-sm font-medium transition-colors ${
-              modo === "dia"
+              modo === "dia" || modo === "semana"
                 ? "border-indigo-600 bg-indigo-600 text-white"
                 : "border-black/10 text-zinc-600 hover:bg-black/5 dark:border-white/10 dark:text-zinc-300 dark:hover:bg-white/5"
             }`}
           >
-            {modo === "dia" ? rotuloDia : "Hoje"}
+            {modo === "dia" ? rotuloDia : modo === "semana" ? "Esta semana" : "Hoje"}
           </button>
           <button
-            onClick={() => { setModo("dia"); setDia((d) => addDays(d, 1)); }}
-            aria-label="Próximo dia"
+            onClick={() => { const p = modo === "semana" ? 7 : 1; if (modo !== "semana") setModo("dia"); setDia((d) => addDays(d, p)); }}
+            aria-label="Próximo"
             className="rounded-lg border border-black/10 p-1.5 text-zinc-600 hover:bg-black/5 dark:border-white/10 dark:text-zinc-300 dark:hover:bg-white/5"
           >
             <ChevronRight size={16} />
@@ -260,6 +272,14 @@ export function PlanejadorDia({ folhas, reunioes, config, carregando, onAplicar,
 
       {carregando ? (
         <p className="text-sm text-zinc-500">Carregando…</p>
+      ) : modo === "semana" ? (
+        <VisaoSemana
+          dia={dia}
+          folhas={folhas}
+          reunioes={reunioes}
+          config={config}
+          onSelecionarDia={(d) => { setModo("dia"); setDia(d); }}
+        />
       ) : (
         <div className="grid gap-4 md:grid-cols-3">
           {COLUNAS.map(({ status, vazio }) => {
