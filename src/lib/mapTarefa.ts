@@ -32,6 +32,7 @@ export function flattenFolhas(raizes: any[]) {
         prazo: node.prazo,
         dataInicio: node.dataInicio,
         duracaoMin: node.duracaoMin,
+        tempoGastoMin: node.tempoGastoMin ?? null,
         concluidaEm: node.concluidaEm ?? null,
         projeto: { id: raiz.id, titulo: raiz.titulo, tipo: raiz.tipo, nivel: raiz.nivel },
       });

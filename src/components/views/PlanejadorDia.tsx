@@ -1,10 +1,11 @@
 "use client";
 
-import { useMemo, useState } from "react";
+import { useEffect, useMemo, useState } from "react";
 import { format, addDays, isToday } from "date-fns";
 import { ptBR } from "date-fns/locale";
 import {
   ChevronLeft, ChevronRight, ChevronsRight, Clock, AlertTriangle, LayoutGrid, Settings2, Sparkles, Sunset,
+  Play, Square, Timer,
 } from "lucide-react";
 import {
   bucketsDoDia, bucketsGeral, agruparPorProjeto, ocupadosDoDia, proximaVaga, capacidadeDoDia,
@@ -40,6 +41,15 @@ export function PlanejadorDia({ folhas, reunioes, config, carregando, onAplicar,
   const [colunaAlvo, setColunaAlvo] = useState<Status | null>(null);
   const [configAberta, setConfigAberta] = useState(false);
   const [encerrarAberto, setEncerrarAberto] = useState(false);
+  const [foco, setFoco] = useState<{ id: string; titulo: string; inicioTs: number } | null>(null);
+  const [, setTick] = useState(0);
+
+  // Tique de 1s para atualizar o cronômetro enquanto há foco ativo.
+  useEffect(() => {
+    if (!foco) return;
+    const t = setInterval(() => setTick((x) => x + 1), 1000);
+    return () => clearInterval(t);
+  }, [foco]);
 
   const buckets = useMemo(
     () => (modo === "geral" ? bucketsGeral(folhas) : bucketsDoDia(folhas, dia, new Date())),
@@ -101,6 +111,18 @@ export function PlanejadorDia({ folhas, reunioes, config, carregando, onAplicar,
     }
   }
 
+  function iniciarFoco(f: FolhaDTO) {
+    setFoco({ id: f.id, titulo: f.titulo, inicioTs: Date.now() });
+  }
+
+  function pararFoco() {
+    if (!foco) return;
+    const minutos = Math.max(1, Math.round((Date.now() - foco.inicioTs) / 60000));
+    const f = folhas.find((x) => x.id === foco.id);
+    onAplicar(foco.id, { tempoGastoMin: (f?.tempoGastoMin ?? 0) + minutos });
+    setFoco(null);
+  }
+
   // Encerramento: leva as tarefas em andamento não concluídas para amanhã.
   function moverPendentesAmanha() {
     for (const f of buckets.emAndamento) {
@@ -112,8 +134,29 @@ export function PlanejadorDia({ folhas, reunioes, config, carregando, onAplicar,
 
   const rotuloDia = isToday(dia) ? "Hoje" : format(dia, "EEE, dd 'de' MMM", { locale: ptBR });
 
+  const cronometro = foco ? Date.now() - foco.inicioTs : 0;
+  const fmtCron = (ms: number) => {
+    const s = Math.floor(ms / 1000);
+    return `${String(Math.floor(s / 60)).padStart(2, "0")}:${String(s % 60).padStart(2, "0")}`;
+  };
+
   return (
     <div className="flex flex-col gap-4">
+      {/* Cronômetro de foco */}
+      {foco && (
+        <div className="flex items-center gap-3 rounded-xl border border-indigo-300 bg-indigo-50 px-4 py-2 dark:border-indigo-800 dark:bg-indigo-950/40">
+          <Timer size={18} className="shrink-0 animate-pulse text-indigo-600" />
+          <span className="truncate text-sm font-medium text-indigo-900 dark:text-indigo-100">{foco.titulo}</span>
+          <span className="ml-auto font-mono text-lg tabular-nums text-indigo-700 dark:text-indigo-200">{fmtCron(cronometro)}</span>
+          <button
+            onClick={pararFoco}
+            className="inline-flex items-center gap-1.5 rounded-lg bg-indigo-600 px-3 py-1.5 text-sm font-medium text-white hover:bg-indigo-500"
+          >
+            <Square size={14} /> Parar
+          </button>
+        </div>
+      )}
+
       {/* Barra de navegação do dia */}
       <div className="flex flex-wrap items-center gap-2">
         <button
@@ -284,6 +327,8 @@ export function PlanejadorDia({ folhas, reunioes, config, carregando, onAplicar,
                           carryOver={false}
                           onDragStart={() => setArrastando(f.id)}
                           onAdiar={status === "em_andamento" ? () => adiar(f) : undefined}
+                          onFoco={status === "em_andamento" ? () => iniciarFoco(f) : undefined}
+                          focando={foco?.id === f.id}
                         />
                       ))}
                 </div>
@@ -311,23 +356,38 @@ function Cartao({
   carryOver,
   onDragStart,
   onAdiar,
+  onFoco,
+  focando,
 }: {
   folha: FolhaDTO;
   carryOver: boolean;
   onDragStart: () => void;
   onAdiar?: () => void;
+  onFoco?: () => void;
+  focando?: boolean;
 }) {
   const concluida = folha.status === "concluido";
   return (
     <div
       draggable
       onDragStart={onDragStart}
-      className="group cursor-grab rounded-lg border border-black/10 bg-white p-2.5 shadow-sm transition-shadow hover:shadow-md active:cursor-grabbing dark:border-white/10 dark:bg-zinc-900"
+      className={`group cursor-grab rounded-lg border bg-white p-2.5 shadow-sm transition-shadow hover:shadow-md active:cursor-grabbing dark:bg-zinc-900 ${
+        focando ? "border-indigo-400 ring-1 ring-indigo-300" : "border-black/10 dark:border-white/10"
+      }`}
     >
       <div className="flex items-start gap-2">
         <p className={`flex-1 text-sm leading-snug ${concluida ? "text-zinc-400 line-through" : "font-medium"}`}>
           {folha.titulo}
         </p>
+        {onFoco && !focando && (
+          <button
+            onClick={(e) => { e.stopPropagation(); onFoco(); }}
+            title="Iniciar foco"
+            className="shrink-0 rounded p-0.5 text-zinc-300 opacity-0 transition hover:text-indigo-600 group-hover:opacity-100"
+          >
+            <Play size={14} />
+          </button>
+        )}
         {onAdiar && (
           <button
             onClick={(e) => { e.stopPropagation(); onAdiar(); }}
@@ -348,6 +408,11 @@ function Cartao({
             <Clock size={10} />
             {format(new Date(folha.dataInicio), "HH:mm")}
             {folha.duracaoMin ? ` · ${formatarDuracao(folha.duracaoMin)}` : ""}
+          </span>
+        )}
+        {folha.tempoGastoMin != null && folha.tempoGastoMin > 0 && (
+          <span className="inline-flex items-center gap-1 text-[11px] text-emerald-600" title="Tempo real registrado">
+            <Timer size={10} /> {formatarDuracao(folha.tempoGastoMin)}
           </span>
         )}
         {carryOver && (

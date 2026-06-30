@@ -8,6 +8,7 @@ import { prisma } from "@/lib/prisma";
 import { PRIORIDADES, RECORRENCIAS, STATUS, TIPOS } from "@/lib/tarefas";
 import { includeTarefaDetalhe, flattenFolhas } from "@/lib/mapTarefa";
 import { ocupadosDoDia, proximaVaga, mesmoDia, type ConfigDTO, type ReuniaoSlim } from "@/lib/agenda";
+import { proximaOcorrencia } from "@/lib/datas";
 
 const MODELO = "gemini-2.5-flash";
 
@@ -270,7 +271,21 @@ async function executar(nome: string, args: Args): Promise<unknown> {
       const id = str(args.id);
       if (!id) return { erro: "id é obrigatório." };
       try {
-        const t = await prisma.tarefa.update({ where: { id }, data: { status: "concluido", concluidaEm: new Date() } });
+        const atual = await prisma.tarefa.findUnique({
+          where: { id },
+          select: { recorrencia: true, prazo: true, recorrenciaAte: true },
+        });
+        // Hábitos: tarefa recorrente rola para a próxima ocorrência ao concluir.
+        let data: Record<string, unknown> = { status: "concluido", concluidaEm: new Date() };
+        if (atual && atual.recorrencia && atual.recorrencia !== "none") {
+          const agora = new Date();
+          const base = atual.prazo && atual.prazo > agora ? atual.prazo : agora;
+          const prox = proximaOcorrencia(base, atual.recorrencia);
+          if (!atual.recorrenciaAte || prox <= atual.recorrenciaAte) {
+            data = { status: "a_fazer", concluidaEm: null, prazo: prox, dataInicio: null };
+          }
+        }
+        const t = await prisma.tarefa.update({ where: { id }, data });
         return { ok: true, id: t.id, titulo: t.titulo };
       } catch {
         return { erro: "Tarefa não encontrada." };

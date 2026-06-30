@@ -12,6 +12,7 @@ export type MudancaFolha = {
   status?: Status;
   dataInicio?: string | null;
   duracaoMin?: number | null;
+  tempoGastoMin?: number | null;
 };
 
 export function useAgenda() {

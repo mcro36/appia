@@ -32,3 +32,12 @@ export function hhmmParaMinutos(valor: string): number | null {
   if (!m) return null;
   return parseInt(m[1], 10) * 60 + parseInt(m[2], 10);
 }
+
+/** Próxima ocorrência de uma recorrência a partir de uma data base. */
+export function proximaOcorrencia(base: Date, recorrencia: string): Date {
+  const d = new Date(base);
+  if (recorrencia === "diaria") d.setDate(d.getDate() + 1);
+  else if (recorrencia === "semanal") d.setDate(d.getDate() + 7);
+  else if (recorrencia === "mensal") d.setMonth(d.getMonth() + 1);
+  return d;
+}

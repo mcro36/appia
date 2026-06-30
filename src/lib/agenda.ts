@@ -11,6 +11,7 @@ export type FolhaDTO = {
   prazo: string | null;
   dataInicio: string | null;
   duracaoMin: number | null;
+  tempoGastoMin: number | null;
   concluidaEm: string | null;
   // Projeto/atividade raiz a que a folha pertence (para agrupar no backlog).
   projeto: { id: string; titulo: string; tipo: Tipo; nivel: Nivel };
