@@ -1,6 +1,6 @@
 "use client";
 
-import { useEffect, useMemo, useState } from "react";
+import { useEffect, useMemo, useRef, useState } from "react";
 import { Plus, Tag } from "lucide-react";
 import { BotaoIA } from "@/components/BotaoIA";
 import { ChatPanel } from "@/components/ChatPanel";
@@ -37,8 +37,16 @@ export default function Home() {
   const [filtroNivel, setFiltroNivel] = useState<Nivel | "todos">("todos");
   const isPWA = useIsPWA();
 
+  // Coordenação entre as duas fontes (lista de tarefas x folhas do planejador):
+  // uma mutação numa marca a OUTRA como suja; cada visão recarrega só ao ser
+  // aberta e só se estiver suja — evita refetch redundante e o duplo-GET por ação.
+  const tarefasSuja = useRef(false);
+  const agendaSuja = useRef(false);
+  const FOLHAS = useMemo(() => new Set<Visao>(["dia", "painel"]), []);
+
   async function handleCriar(dados: NovaTarefa) {
     await criar(dados);
+    agendaSuja.current = true;
     setMostrarForm(false);
   }
 
@@ -46,18 +54,37 @@ export default function Home() {
   function atualizarDetalhe(id: string, dados: Partial<TarefaDTO>) {
     atualizarLocal(id, dados);
     setTarefaAberta((prev) => (prev?.id === id ? { ...prev, ...dados } : prev));
+    agendaSuja.current = true;
   }
 
-  // Edição no planejador: aplica otimista nas folhas e atualiza a lista geral
-  // em segundo plano para manter as outras visões coerentes.
+  // Subtarefas/reuniões mudaram (detalhe, chat): atualiza a lista visível e
+  // marca o planejador para recarregar na próxima visita.
+  function tarefasMudaram() {
+    recarregar();
+    agendaSuja.current = true;
+  }
+
+  // Mutação direta na lista (Kanban/Tabela): otimista + marca o planejador sujo.
+  function atualizarTarefa(id: string, dados: Partial<NovaTarefa>) {
+    atualizar(id, dados);
+    agendaSuja.current = true;
+  }
+
+  // Edição no planejador: aplica otimista nas folhas e marca a lista suja.
   function aplicarNoPlanejador(id: string, dados: Parameters<typeof aplicarAgenda>[1]) {
-    aplicarAgenda(id, dados).then(() => recarregar());
+    aplicarAgenda(id, dados);
+    tarefasSuja.current = true;
   }
 
-  // Ao entrar nas visões baseadas em folhas, recarrega (reflete outras visões).
+  // Ao trocar de visão, recarrega a fonte da visão aberta se estiver suja.
   useEffect(() => {
-    if (visao === "dia" || visao === "painel") carregarAgenda();
-  }, [visao, carregarAgenda]);
+    if (FOLHAS.has(visao)) {
+      if (agendaSuja.current) { agendaSuja.current = false; carregarAgenda(); }
+    } else if (tarefasSuja.current) {
+      tarefasSuja.current = false;
+      recarregar();
+    }
+  }, [visao, FOLHAS, carregarAgenda, recarregar]);
 
   // Remoção a partir da lista (Kanban/Tabela): confirma antes, pois o cascade
   // apaga subtarefas e reuniões vinculadas.
@@ -70,6 +97,7 @@ export default function Home() {
       : `Excluir "${t.titulo}"?`;
     if (!confirm(aviso)) return;
     remover(id);
+    agendaSuja.current = true;
   }
 
   const tarefasFiltradas = useMemo(() => {
@@ -179,14 +207,14 @@ export default function Home() {
           ) : visao === "kanban" ? (
             <KanbanBoard
               tarefas={tarefasFiltradas}
-              onMudarStatus={(id, status) => atualizar(id, { status })}
+              onMudarStatus={(id, status) => atualizarTarefa(id, { status })}
               onRemover={handleRemover}
               onAbrir={setTarefaAberta}
             />
           ) : visao === "tabela" ? (
             <TabelaTarefas
               tarefas={tarefasFiltradas}
-              onAtualizar={atualizar}
+              onAtualizar={atualizarTarefa}
               onRemover={handleRemover}
               onAbrir={setTarefaAberta}
             />
@@ -198,7 +226,7 @@ export default function Home() {
 
       {/* Chat lateral */}
       {chatAberto && (
-        <ChatPanel onFechar={() => setChatAberto(false)} onTarefasMudaram={recarregar} />
+        <ChatPanel onFechar={() => setChatAberto(false)} onTarefasMudaram={tarefasMudaram} />
       )}
 
       {/* Botão flutuante "Nova" — só no PWA, acima do botão da IA */}
@@ -222,7 +250,7 @@ export default function Home() {
           tagsDisponiveis={tags}
           onFechar={() => setTarefaAberta(null)}
           onAtualizar={atualizarDetalhe}
-          onTarefasMudaram={recarregar}
+          onTarefasMudaram={tarefasMudaram}
         />
       )}
 
