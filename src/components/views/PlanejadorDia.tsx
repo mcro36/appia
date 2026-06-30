@@ -16,6 +16,7 @@ import {
 } from "@/lib/tarefas-display";
 import { formatarDuracao, minutosParaHHMM, hhmmParaMinutos } from "@/lib/datas";
 import type { MudancaFolha } from "@/lib/useAgenda";
+import { AgendaDia } from "@/components/views/AgendaDia";
 
 type Props = {
   folhas: FolhaDTO[];
@@ -230,6 +231,16 @@ export function PlanejadorDia({ folhas, reunioes, config, carregando, onAplicar,
             );
           })}
         </div>
+      )}
+
+      {!carregando && modo === "dia" && (
+        <AgendaDia
+          dia={dia}
+          reunioes={reunioes}
+          blocosTarefa={buckets.emAndamento}
+          config={config}
+          onReagendar={(id, iso) => onAplicar(id, { dataInicio: iso })}
+        />
       )}
     </div>
   );
