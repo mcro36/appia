@@ -14,6 +14,35 @@ export const includeTarefaDetalhe = {
   tarefas: { include: { tarefas: true } },
 };
 
+// Achata a árvore (raízes → filhas → netas) em folhas agendáveis (nós sem
+// filhos), carregando o projeto/atividade raiz para o planejador diário.
+// eslint-disable-next-line @typescript-eslint/no-explicit-any
+export function flattenFolhas(raizes: any[]) {
+  // eslint-disable-next-line @typescript-eslint/no-explicit-any
+  const out: any[] = [];
+  // eslint-disable-next-line @typescript-eslint/no-explicit-any
+  const walk = (node: any, raiz: any) => {
+    const filhos = node.tarefas ?? [];
+    if (filhos.length === 0) {
+      out.push({
+        id: node.id,
+        titulo: node.titulo,
+        status: node.status,
+        prioridade: node.prioridade,
+        prazo: node.prazo,
+        dataInicio: node.dataInicio,
+        duracaoMin: node.duracaoMin,
+        concluidaEm: node.concluidaEm ?? null,
+        projeto: { id: raiz.id, titulo: raiz.titulo, tipo: raiz.tipo, nivel: raiz.nivel },
+      });
+    } else {
+      for (const f of filhos) walk(f, raiz);
+    }
+  };
+  for (const r of raizes) walk(r, r);
+  return out;
+}
+
 // eslint-disable-next-line @typescript-eslint/no-explicit-any
 function mapFilha(s: any) {
   return {

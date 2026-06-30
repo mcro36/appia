@@ -1,4 +1,5 @@
 import type { Nivel, Tipo, Prioridade, Recorrencia, Status, TarefaDTO, TagDTO, TarefaFilhaDTO, ReuniaoDTO, TopicoDTO } from "@/lib/tarefas";
+import type { FolhaDTO } from "@/lib/agenda";
 
 export type NovaTarefa = {
   tipo?: Tipo;
@@ -99,6 +100,10 @@ export const topicosApi = {
     const res = await fetch(`/api/topicos/${id}`, { method: "DELETE" });
     if (!res.ok && res.status !== 204) throw new Error(`Erro ${res.status}`);
   },
+};
+
+export const agendaApi = {
+  listar: () => fetch("/api/agenda").then((r) => parse<FolhaDTO[]>(r)),
 };
 
 export const tagsApi = {

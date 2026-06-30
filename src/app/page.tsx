@@ -1,6 +1,6 @@
 "use client";
 
-import { useMemo, useState } from "react";
+import { useEffect, useMemo, useState } from "react";
 import { Plus, Tag } from "lucide-react";
 import { BotaoIA } from "@/components/BotaoIA";
 import { ChatPanel } from "@/components/ChatPanel";
@@ -13,6 +13,8 @@ import { TarefaDetalhe } from "@/components/TarefaDetalhe";
 import { KanbanBoard } from "@/components/views/KanbanBoard";
 import { TabelaTarefas } from "@/components/views/TabelaTarefas";
 import { CalendarioTarefas } from "@/components/views/CalendarioTarefas";
+import { PlanejadorDia } from "@/components/views/PlanejadorDia";
+import { useAgenda } from "@/lib/useAgenda";
 import { type NovaTarefa } from "@/lib/api";
 import { NIVEIS, type Nivel, type Tipo, type TarefaDTO } from "@/lib/tarefas";
 import { NIVEL_LABEL } from "@/lib/tarefas-display";
@@ -21,7 +23,8 @@ import { useIsPWA } from "@/lib/useIsPWA";
 
 export default function Home() {
   const { tarefas, tags, carregando, erro, recarregar, criar, atualizar, remover, atualizarLocal } = useTarefas();
-  const [visao, setVisao] = useState<Visao>("kanban");
+  const { folhas, carregando: carregandoAgenda, carregar: carregarAgenda, aplicar: aplicarAgenda } = useAgenda();
+  const [visao, setVisao] = useState<Visao>("dia");
   const [mostrarForm, setMostrarForm] = useState(false);
   const [chatAberto, setChatAberto] = useState(false);
   const [tarefaAberta, setTarefaAberta] = useState<TarefaDTO | null>(null);
@@ -40,6 +43,17 @@ export default function Home() {
     atualizarLocal(id, dados);
     setTarefaAberta((prev) => (prev?.id === id ? { ...prev, ...dados } : prev));
   }
+
+  // Edição no planejador: aplica otimista nas folhas e atualiza a lista geral
+  // em segundo plano para manter as outras visões coerentes.
+  function aplicarNoPlanejador(id: string, dados: Parameters<typeof aplicarAgenda>[1]) {
+    aplicarAgenda(id, dados).then(() => recarregar());
+  }
+
+  // Ao entrar na visão Dia, recarrega as folhas (reflete edições de outras visões).
+  useEffect(() => {
+    if (visao === "dia") carregarAgenda();
+  }, [visao, carregarAgenda]);
 
   // Remoção a partir da lista (Kanban/Tabela): confirma antes, pois o cascade
   // apaga subtarefas e reuniões vinculadas.
@@ -145,7 +159,13 @@ export default function Home() {
               {erro}
             </p>
           )}
-          {carregando ? (
+          {visao === "dia" ? (
+            <PlanejadorDia
+              folhas={folhas}
+              carregando={carregandoAgenda}
+              onAplicar={aplicarNoPlanejador}
+            />
+          ) : carregando ? (
             <p className="text-sm text-zinc-500">Carregando…</p>
           ) : visao === "kanban" ? (
             <KanbanBoard
