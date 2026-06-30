@@ -60,7 +60,14 @@ export function TarefaDetalhe({ tarefa: tarefaInicial, tagsDisponiveis, onFechar
 
   return (
     <div className="fixed inset-0 z-50 flex">
-      <div className="flex-1 bg-black/40" onClick={onFechar} />
+      <div
+          className="flex-1 bg-black/40"
+          onMouseDown={() => {
+            if (novaSubtarefa.trim()) handleAdicionarTarefa();
+            if (novaReuniao.trim()) handleAdicionarReuniao();
+          }}
+          onClick={onFechar}
+        />
 
       <div className="flex h-full w-full max-w-lg flex-col overflow-y-auto bg-white shadow-2xl dark:bg-zinc-900">
         {/* Header */}
