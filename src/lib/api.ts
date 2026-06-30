@@ -67,7 +67,7 @@ export const reunioesApi = {
       body: JSON.stringify(dados),
     }).then((r) => parse<ReuniaoDTO>(r)),
 
-  atualizar: (id: string, dados: { titulo?: string | null; dataHora?: string | null; anotacoes?: string | null }) =>
+  atualizar: (id: string, dados: { titulo?: string | null; dataHora?: string | null; duracaoMin?: number | null }) =>
     fetch(`/api/reunioes/${id}`, {
       method: "PATCH",
       headers: { "Content-Type": "application/json" },

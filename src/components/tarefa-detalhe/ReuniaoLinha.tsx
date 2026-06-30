@@ -4,15 +4,15 @@ import { useEffect, useRef, useState } from "react";
 import { format } from "date-fns";
 import { ptBR } from "date-fns/locale";
 import {
-  Calendar, ChevronRight, ChevronDown, Trash2, Check,
+  Calendar, Clock, ChevronRight, ChevronDown, Trash2, Check,
   CheckSquare, Square, Plus, Users, Pencil, CalendarClock,
 } from "lucide-react";
-import { dataParaInputLocal } from "@/lib/datas";
+import { dataParaInputLocal, formatarDuracao } from "@/lib/datas";
 import type { ReuniaoDTO, TopicoDTO } from "@/lib/tarefas";
 
 type Props = {
   reuniao: ReuniaoDTO;
-  onAtualizar: (id: string, dados: { titulo?: string | null; dataHora?: string | null; anotacoes?: string | null }) => Promise<void>;
+  onAtualizar: (id: string, dados: { titulo?: string | null; dataHora?: string | null; duracaoMin?: number | null }) => Promise<void>;
   onRemover: (id: string) => Promise<void>;
   onAdicionarTopico: (reuniaoId: string, titulo: string) => Promise<void>;
   onToggleTopico: (reuniaoId: string, topico: TopicoDTO) => Promise<void>;
@@ -29,6 +29,7 @@ export function ReuniaoLinha({
   const [tituloEdit, setTituloEdit] = useState(reuniao.titulo ?? "");
   const [agendaAberta, setAgendaAberta] = useState(false);
   const [dataHoraEdit, setDataHoraEdit] = useState(dataParaInputLocal(reuniao.dataHora));
+  const [duracaoEdit, setDuracaoEdit] = useState(reuniao.duracaoMin ? String(reuniao.duracaoMin) : "");
   const [novoTopico, setNovoTopico] = useState("");
   const [editandoTopico, setEditandoTopico] = useState<string | null>(null);
   const [topicoEdit, setTopicoEdit] = useState("");
@@ -50,11 +51,13 @@ export function ReuniaoLinha({
     document.addEventListener("mousedown", onClick);
     return () => document.removeEventListener("mousedown", onClick);
     // eslint-disable-next-line react-hooks/exhaustive-deps
-  }, [agendaAberta, dataHoraEdit]);
+  }, [agendaAberta, dataHoraEdit, duracaoEdit]);
 
   function salvarAgenda() {
-    const novo = dataHoraEdit ? new Date(dataHoraEdit).toISOString() : null;
-    if (novo !== reuniao.dataHora) onAtualizar(reuniao.id, { dataHora: novo });
+    const novaData = dataHoraEdit ? new Date(dataHoraEdit).toISOString() : null;
+    const novaDur = duracaoEdit ? parseInt(duracaoEdit, 10) : null;
+    if (novaData !== reuniao.dataHora || novaDur !== reuniao.duracaoMin)
+      onAtualizar(reuniao.id, { dataHora: novaData, duracaoMin: novaDur });
   }
 
   function salvarTitulo() {
@@ -161,22 +164,32 @@ export function ReuniaoLinha({
               <p className={`truncate text-sm font-medium ${!reuniao.titulo ? "italic text-zinc-400" : ""}`}>
                 {reuniao.titulo || "Reunião sem título"}
               </p>
-              <div className="mt-0.5 flex flex-wrap items-center gap-2">
-                {reuniao.dataHora && (
-                  <span className="inline-flex items-center gap-1 text-[11px] text-indigo-600">
-                    <Calendar size={10} />
-                    {format(new Date(reuniao.dataHora), "dd/MM/yyyy 'às' HH:mm", { locale: ptBR })}
-                  </span>
-                )}
-                {reuniao.topicos.length > 0 && (
-                  <span className="text-[11px] tabular-nums text-zinc-400">
-                    {topicosConcluidos.length}/{reuniao.topicos.length} tópicos
-                  </span>
-                )}
-              </div>
+              {(reuniao.dataHora || reuniao.duracaoMin) && (
+                <div className="mt-0.5 flex flex-wrap items-center gap-2">
+                  {reuniao.dataHora && (
+                    <span className="inline-flex items-center gap-1 text-[11px] text-indigo-600">
+                      <Calendar size={10} />
+                      {format(new Date(reuniao.dataHora), "dd/MM 'às' HH:mm", { locale: ptBR })}
+                    </span>
+                  )}
+                  {reuniao.duracaoMin && (
+                    <span className="inline-flex items-center gap-1 text-[11px] text-zinc-400">
+                      <Clock size={10} />
+                      {formatarDuracao(reuniao.duracaoMin)}
+                    </span>
+                  )}
+                </div>
+              )}
             </>
           )}
         </div>
+
+        {/* Contador de tópicos */}
+        {reuniao.topicos.length > 0 && !editando && (
+          <span className="shrink-0 text-[11px] tabular-nums text-zinc-400">
+            {topicosConcluidos.length}/{reuniao.topicos.length}
+          </span>
+        )}
 
         {/* Ações */}
         {editando ? (
@@ -233,6 +246,18 @@ export function ReuniaoLinha({
               type="datetime-local"
               value={dataHoraEdit}
               onChange={(e) => setDataHoraEdit(e.target.value)}
+              className="mb-2 w-full rounded-md bg-zinc-50 px-2 py-1 text-xs ring-1 ring-black/10 outline-none focus:ring-indigo-400 dark:bg-zinc-800 dark:ring-white/10"
+            />
+            <p className="mb-1 flex items-center gap-1 text-[11px] font-medium text-zinc-500">
+              <Clock size={10} /> Duração (min)
+            </p>
+            <input
+              type="number"
+              min={5}
+              step={5}
+              value={duracaoEdit}
+              onChange={(e) => setDuracaoEdit(e.target.value)}
+              placeholder="ex: 60"
               className="mb-2 w-full rounded-md bg-zinc-50 px-2 py-1 text-xs ring-1 ring-black/10 outline-none focus:ring-indigo-400 dark:bg-zinc-800 dark:ring-white/10"
             />
             <button

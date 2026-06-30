@@ -13,7 +13,7 @@ export async function PATCH(req: Request, { params }: Ctx) {
   const data: Record<string, unknown> = {};
   if ("titulo" in body) data.titulo = typeof body.titulo === "string" ? body.titulo.trim() || null : null;
   if ("dataHora" in body) data.dataHora = body.dataHora ? new Date(body.dataHora) : null;
-  if ("anotacoes" in body) data.anotacoes = typeof body.anotacoes === "string" ? body.anotacoes.trim() || null : null;
+  if ("duracaoMin" in body) data.duracaoMin = typeof body.duracaoMin === "number" ? Math.round(body.duracaoMin) : null;
 
   const reuniao = await prisma.reuniao.update({
     where: { id },

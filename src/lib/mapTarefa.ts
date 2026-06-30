@@ -40,7 +40,7 @@ export function mapReuniao(r: any) {
     tarefaId: r.tarefaId,
     titulo: r.titulo ?? null,
     dataHora: r.dataHora ?? null,
-    anotacoes: r.anotacoes ?? null,
+    duracaoMin: r.duracaoMin ?? null,
     // eslint-disable-next-line @typescript-eslint/no-explicit-any
     topicos: (r.topicos ?? []).map((t: any) => ({ id: t.id, titulo: t.titulo, concluido: t.concluido })),
     criadaEm: r.criadaEm,

@@ -25,7 +25,7 @@ export async function POST(req: Request, { params }: Ctx) {
       tarefaId: id,
       titulo: typeof body.titulo === "string" ? body.titulo.trim() || null : null,
       dataHora: body.dataHora ? new Date(body.dataHora) : null,
-      anotacoes: typeof body.anotacoes === "string" ? body.anotacoes.trim() || null : null,
+      duracaoMin: typeof body.duracaoMin === "number" ? Math.round(body.duracaoMin) : null,
     },
     include: includeReuniao,
   });

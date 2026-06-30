@@ -100,14 +100,14 @@ model NotificacaoEnviada {
 }
 
 model Reuniao {
-  id        String    @id @default(cuid())
-  tarefaId  String
-  tarefa    Tarefa    @relation(fields: [tarefaId], references: [id], onDelete: Cascade)
-  titulo    String?
-  dataHora  DateTime?
-  anotacoes String?
-  topicos   Topico[]
-  criadaEm  DateTime  @default(now())
+  id         String    @id @default(cuid())
+  tarefaId   String
+  tarefa     Tarefa    @relation(fields: [tarefaId], references: [id], onDelete: Cascade)
+  titulo     String?
+  dataHora   DateTime?
+  duracaoMin Int?
+  topicos    Topico[]
+  criadaEm   DateTime  @default(now())
 }
 
 model Topico {

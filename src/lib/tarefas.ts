@@ -65,7 +65,7 @@ export type ReuniaoDTO = {
   tarefaId: string;
   titulo: string | null;
   dataHora: string | null;
-  anotacoes: string | null;
+  duracaoMin: number | null;
   topicos: TopicoDTO[];
   criadaEm: string;
 };

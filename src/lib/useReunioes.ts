@@ -18,7 +18,7 @@ export function useReunioes(tarefaId: string) {
     return nova;
   }
 
-  async function atualizar(id: string, dados: { titulo?: string | null; dataHora?: string | null; anotacoes?: string | null }) {
+  async function atualizar(id: string, dados: { titulo?: string | null; dataHora?: string | null; duracaoMin?: number | null }) {
     const atualizada = await reunioesApi.atualizar(id, dados);
     setReunioes((prev) => prev.map((r) => (r.id === id ? atualizada : r)));
   }

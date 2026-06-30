@@ -41,6 +41,19 @@ export default function Home() {
     setTarefaAberta((prev) => (prev?.id === id ? { ...prev, ...dados } : prev));
   }
 
+  // Remoção a partir da lista (Kanban/Tabela): confirma antes, pois o cascade
+  // apaga subtarefas e reuniões vinculadas.
+  function handleRemover(id: string) {
+    const t = tarefas.find((x) => x.id === id);
+    if (!t) return;
+    const nFilhas = t.tarefas.length;
+    const aviso = nFilhas
+      ? `Excluir "${t.titulo}" e suas ${nFilhas} subtarefa(s)?`
+      : `Excluir "${t.titulo}"?`;
+    if (!confirm(aviso)) return;
+    remover(id);
+  }
+
   const tarefasFiltradas = useMemo(() => {
     return tarefas
       .filter((t) => filtroTipo === "todos" || t.tipo === filtroTipo)
@@ -138,14 +151,14 @@ export default function Home() {
             <KanbanBoard
               tarefas={tarefasFiltradas}
               onMudarStatus={(id, status) => atualizar(id, { status })}
-              onRemover={remover}
+              onRemover={handleRemover}
               onAbrir={setTarefaAberta}
             />
           ) : visao === "tabela" ? (
             <TabelaTarefas
               tarefas={tarefasFiltradas}
               onAtualizar={atualizar}
-              onRemover={remover}
+              onRemover={handleRemover}
               onAbrir={setTarefaAberta}
             />
           ) : (
