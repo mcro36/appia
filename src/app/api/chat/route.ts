@@ -1,11 +1,15 @@
 import { NextResponse } from "next/server";
 import type { Content } from "@google/generative-ai";
 import { prisma } from "@/lib/prisma";
+import { lerContexto } from "@/lib/contexto";
 import { processarMensagem } from "@/lib/gemini";
 
-// GET /api/chat — histórico de mensagens (ordem cronológica)
+// GET /api/chat — histórico de mensagens do usuário (ordem cronológica)
 export async function GET() {
+  const ctx = await lerContexto();
+  if (!ctx) return NextResponse.json({ erro: "Não autenticado." }, { status: 401 });
   const mensagens = await prisma.mensagemChat.findMany({
+    where: { usuarioId: ctx.usuarioId },
     orderBy: { timestamp: "asc" },
     take: 100,
   });
@@ -14,6 +18,9 @@ export async function GET() {
 
 // POST /api/chat — envia uma mensagem ao assistente e executa as ações decididas
 export async function POST(req: Request) {
+  const ctx = await lerContexto();
+  if (!ctx) return NextResponse.json({ erro: "Não autenticado." }, { status: 401 });
+
   const body = await req.json().catch(() => null);
   const mensagem = typeof body?.mensagem === "string" ? body.mensagem.trim() : "";
   if (!mensagem) {
@@ -23,6 +30,7 @@ export async function POST(req: Request) {
   // Histórico anterior (últimas ~5 trocas) para dar contexto ao modelo sem
   // inflar tokens — o estado das tarefas vai à parte, no snapshot do system prompt.
   const recentes = await prisma.mensagemChat.findMany({
+    where: { usuarioId: ctx.usuarioId },
     orderBy: { timestamp: "desc" },
     take: 10,
   });
@@ -38,7 +46,7 @@ export async function POST(req: Request) {
   // órfã no histórico (o que confundiria os próximos turnos).
   let resposta;
   try {
-    resposta = await processarMensagem(mensagem, historico);
+    resposta = await processarMensagem(mensagem, historico, ctx);
   } catch (e) {
     const bruto = e instanceof Error ? e.message : String(e);
     // Erro de quota/limite da API Gemini → mensagem amigável + 429
@@ -59,9 +67,9 @@ export async function POST(req: Request) {
   const acoesResumo = resposta.acoes.length
     ? JSON.stringify(resposta.acoes.map((a) => a.funcao))
     : null;
-  await prisma.mensagemChat.create({ data: { papel: "user", conteudo: mensagem } });
+  await prisma.mensagemChat.create({ data: { papel: "user", conteudo: mensagem, usuarioId: ctx.usuarioId } });
   const msgIa = await prisma.mensagemChat.create({
-    data: { papel: "ia", conteudo: resposta.texto, acaoExecutada: acoesResumo },
+    data: { papel: "ia", conteudo: resposta.texto, acaoExecutada: acoesResumo, usuarioId: ctx.usuarioId },
   });
 
   return NextResponse.json({

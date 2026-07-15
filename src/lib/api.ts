@@ -16,6 +16,18 @@ export type NovaTarefa = {
   tagIds?: string[];
   dataInicio?: string | null;
   duracaoMin?: number | null;
+  assigneeId?: string | null;
+};
+
+export type MembroDTO = { id: string; nome: string; email: string; papel: string };
+
+export type AtividadeDTO = {
+  id: string;
+  tipo: "comentario" | "criou" | "status" | "responsavel";
+  texto: string | null;
+  criadoEm: string;
+  usuario: { id: string; nome: string };
+  meu: boolean;
 };
 
 async function parse<T>(res: Response): Promise<T> {
@@ -115,6 +127,38 @@ export const configApi = {
       headers: { "Content-Type": "application/json" },
       body: JSON.stringify(dados),
     }).then((r) => parse<ConfigDTO>(r)),
+};
+
+export const workspacesApi = {
+  membros: () => fetch("/api/workspaces/membros").then((r) => parse<MembroDTO[]>(r)),
+  mudarPapel: (usuarioId: string, papel: string) =>
+    fetch(`/api/workspaces/membros/${usuarioId}`, {
+      method: "PATCH",
+      headers: { "Content-Type": "application/json" },
+      body: JSON.stringify({ papel }),
+    }).then((r) => parse<{ ok: boolean; papel: string }>(r)),
+  removerMembro: async (usuarioId: string) => {
+    const res = await fetch(`/api/workspaces/membros/${usuarioId}`, { method: "DELETE" });
+    if (!res.ok) {
+      const corpo = await res.json().catch(() => null);
+      throw new Error(corpo?.erro ?? `Erro ${res.status}`);
+    }
+  },
+};
+
+export const atividadeApi = {
+  listar: (tarefaId: string) =>
+    fetch(`/api/tarefas/${tarefaId}/atividade`).then((r) => parse<AtividadeDTO[]>(r)),
+  comentar: (tarefaId: string, texto: string) =>
+    fetch(`/api/tarefas/${tarefaId}/atividade`, {
+      method: "POST",
+      headers: { "Content-Type": "application/json" },
+      body: JSON.stringify({ texto }),
+    }).then((r) => parse<AtividadeDTO>(r)),
+  remover: async (id: string) => {
+    const res = await fetch(`/api/atividade/${id}`, { method: "DELETE" });
+    if (!res.ok && res.status !== 204) throw new Error(`Erro ${res.status}`);
+  },
 };
 
 export const tagsApi = {

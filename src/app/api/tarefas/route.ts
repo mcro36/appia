@@ -1,12 +1,17 @@
 import { NextResponse } from "next/server";
 import { prisma } from "@/lib/prisma";
+import { lerContexto, podeEscrever } from "@/lib/contexto";
+import { registrarAtividade } from "@/lib/atividade";
 import { isPrioridade, isNivel, isRecorrencia, isStatus, isTipo } from "@/lib/tarefas";
 import { includeTarefa as include, mapTarefa } from "@/lib/mapTarefa";
 
-// GET /api/tarefas — lista apenas raízes (atividades e projetos)
+// GET /api/tarefas — lista apenas raízes (atividades e projetos) da workspace
 export async function GET() {
+  const ctx = await lerContexto();
+  if (!ctx) return NextResponse.json({ erro: "Não autenticado." }, { status: 401 });
+
   const tarefas = await prisma.tarefa.findMany({
-    where: { tarefaPaiId: null },
+    where: { tarefaPaiId: null, workspaceId: ctx.workspaceId },
     orderBy: [{ prazo: "asc" }, { criadaEm: "desc" }],
     include,
   });
@@ -15,6 +20,10 @@ export async function GET() {
 
 // POST /api/tarefas
 export async function POST(req: Request) {
+  const ctx = await lerContexto();
+  if (!ctx) return NextResponse.json({ erro: "Não autenticado." }, { status: 401 });
+  if (!podeEscrever(ctx.papel)) return NextResponse.json({ erro: "Somente leitura neste espaço." }, { status: 403 });
+
   const body = await req.json().catch(() => null);
   if (!body || typeof body.titulo !== "string" || !body.titulo.trim())
     return NextResponse.json({ erro: "Título é obrigatório." }, { status: 400 });
@@ -43,10 +52,12 @@ export async function POST(req: Request) {
       recorrencia: body.recorrencia ?? "none",
       recorrenciaAte: body.recorrenciaAte ? new Date(body.recorrenciaAte) : null,
       tarefaPaiId: typeof body.tarefaPaiId === "string" ? body.tarefaPaiId : null,
+      workspaceId: ctx.workspaceId,
       tags: tagIds.length ? { create: tagIds.map((tagId) => ({ tagId })) } : undefined,
     },
     include,
   });
 
+  await registrarAtividade(ctx.workspaceId, ctx.usuarioId, "criou", tarefa.id, null).catch(() => {});
   return NextResponse.json(mapTarefa(tarefa), { status: 201 });
 }

@@ -1,10 +1,11 @@
 "use client";
 
 import { useEffect, useRef, useState } from "react";
-import { X, Plus, Tag, Calendar, GitBranch, ChevronDown, ChevronRight, Users, Lock } from "lucide-react";
+import { X, Plus, Tag, Calendar, GitBranch, ChevronDown, ChevronRight, Users, Lock, UserCircle2 } from "lucide-react";
 import { format } from "date-fns";
 import { ptBR } from "date-fns/locale";
 import { NIVEIS, type TarefaDTO, type TagDTO } from "@/lib/tarefas";
+import { workspacesApi, type MembroDTO } from "@/lib/api";
 import {
   STATUS_LABEL, PRIORIDADE_LABEL, STATUS_COR, PRIORIDADE_COR,
   TIPO_LABEL, TIPO_COR, NIVEL_LABEL, NIVEL_COR,
@@ -14,6 +15,7 @@ import { useTarefaDetalhe } from "@/lib/useTarefaDetalhe";
 import { useReunioes } from "@/lib/useReunioes";
 import { SubtarefaLinha } from "@/components/tarefa-detalhe/SubtarefaLinha";
 import { ReuniaoLinha } from "@/components/tarefa-detalhe/ReuniaoLinha";
+import { AtividadeTarefa } from "@/components/tarefa-detalhe/AtividadeTarefa";
 
 type Props = {
   tarefa: TarefaDTO;
@@ -27,9 +29,12 @@ export function TarefaDetalhe({ tarefa: tarefaInicial, tagsDisponiveis, onFechar
   const {
     tarefa,
     salvarTitulo, salvarDescricao, mudarStatus, mudarPrioridade, mudarPrazo, mudarPrazoRigido, mudarTipo, mudarNivel,
-    adicionarTarefaFilha, alternarConclusao, renomear, excluir, adicionarSubFilha, salvarAgendaTarefa,
+    mudarResponsavel, adicionarTarefaFilha, alternarConclusao, renomear, excluir, adicionarSubFilha, salvarAgendaTarefa,
     toggleTag, criarTag,
   } = useTarefaDetalhe(tarefaInicial, onAtualizar, onTarefasMudaram);
+
+  const [membros, setMembros] = useState<MembroDTO[]>([]);
+  useEffect(() => { workspacesApi.membros().then(setMembros).catch(() => {}); }, []);
 
   const { reunioes, carregar: carregarReunioes, criar: criarReuniao, atualizar: atualizarReuniao, remover: removerReuniao, adicionarTopico, toggleTopico, renomearTopico, removerTopico } = useReunioes(tarefaInicial.id);
 
@@ -170,6 +175,23 @@ export function TarefaDetalhe({ tarefa: tarefaInicial, tagsDisponiveis, onFechar
                 className="w-full rounded-lg px-3 py-1.5 text-sm ring-1 ring-black/10 outline-none focus:ring-indigo-400 dark:bg-zinc-800 dark:ring-white/10"
               />
             </div>
+            {membros.length > 1 && (
+              <div className="col-span-2">
+                <p className="mb-1 flex items-center gap-1 text-xs font-medium text-zinc-500">
+                  <UserCircle2 size={12} /> Responsável
+                </p>
+                <select
+                  value={tarefa.assigneeId ?? ""}
+                  onChange={(e) => mudarResponsavel(e.target.value || null)}
+                  className="w-full rounded-lg px-3 py-1.5 text-sm ring-1 ring-black/10 outline-none focus:ring-indigo-400 dark:bg-zinc-800 dark:ring-white/10 dark:text-zinc-300"
+                >
+                  <option value="">— Ninguém —</option>
+                  {membros.map((m) => (
+                    <option key={m.id} value={m.id}>{m.nome}</option>
+                  ))}
+                </select>
+              </div>
+            )}
           </div>
 
           {/* Tags */}
@@ -313,6 +335,9 @@ export function TarefaDetalhe({ tarefa: tarefaInicial, tagsDisponiveis, onFechar
               </button>
             </div>
           </div>
+
+          {/* Atividade / comentários */}
+          <AtividadeTarefa tarefaId={tarefaInicial.id} />
 
           {/* Rodapé */}
           <div className="border-t border-black/5 pt-4 dark:border-white/5">

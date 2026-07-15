@@ -51,6 +51,8 @@ export type TarefaDTO = {
   criadaEm: string;
   atualizadaEm: string;
   tarefaPaiId: string | null;
+  assigneeId: string | null;
+  assignee: { id: string; nome: string } | null;
   tags: TagDTO[];
   tarefas: TarefaFilhaDTO[];
 };

@@ -80,9 +80,11 @@ function Card({
       )}
 
       <div className="mt-2.5 flex flex-wrap items-center gap-1.5">
-        <span className={`rounded-full px-2 py-0.5 text-[11px] font-medium ${PRIORIDADE_COR[tarefa.prioridade]}`}>
-          {PRIORIDADE_LABEL[tarefa.prioridade]}
-        </span>
+        {tarefa.prioridade !== "media" && (
+          <span className={`rounded-full px-2 py-0.5 text-[11px] font-medium ${PRIORIDADE_COR[tarefa.prioridade]}`}>
+            {PRIORIDADE_LABEL[tarefa.prioridade]}
+          </span>
+        )}
         {tarefa.prazo && (
           <span className={`inline-flex items-center gap-1 text-[11px] ${atrasada ? "font-medium text-red-600" : "text-zinc-500"}`}>
             {atrasada ? <AlertTriangle size={12} /> : <Clock size={12} />}
@@ -93,6 +95,14 @@ function Card({
           <span className="inline-flex items-center gap-0.5 text-[11px] text-zinc-400">
             <GitBranch size={11} />
             {subConcluidas}/{tarefa.tarefas.length}
+          </span>
+        )}
+        {tarefa.assignee && (
+          <span
+            title={`Responsável: ${tarefa.assignee.nome}`}
+            className="ml-auto flex h-5 w-5 items-center justify-center rounded-full bg-indigo-100 text-[10px] font-semibold text-indigo-700 dark:bg-indigo-950/50 dark:text-indigo-300"
+          >
+            {tarefa.assignee.nome.charAt(0).toUpperCase()}
           </span>
         )}
       </div>

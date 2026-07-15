@@ -2,16 +2,21 @@
 // Mantido fora dos arquivos de rota: no Next 16, route handlers só podem
 // exportar os métodos HTTP e configs reservadas.
 
+const selAssignee = { select: { id: true, nome: true } } as const;
+
 // Include raso: lista de raízes (Kanban/Tabela) — só 1 nível de filhas.
 export const includeTarefa = {
   tags: { include: { tag: true } },
   tarefas: true,
+  assignee: selAssignee,
 };
 
-// Include profundo: detalhe de uma tarefa — 2 níveis de filhas (tarefa → subtarefa).
+// Include profundo: detalhe/agenda — 2 níveis de filhas (tarefa → subtarefa),
+// com o responsável em cada nível (as folhas agendáveis podem estar aninhadas).
 export const includeTarefaDetalhe = {
   tags: { include: { tag: true } },
-  tarefas: { include: { tarefas: true } },
+  assignee: selAssignee,
+  tarefas: { include: { assignee: selAssignee, tarefas: { include: { assignee: selAssignee } } } },
 };
 
 // Achata a árvore (raízes → filhas → netas) em folhas agendáveis (nós sem
@@ -35,6 +40,7 @@ export function flattenFolhas(raizes: any[]) {
         duracaoMin: node.duracaoMin,
         tempoGastoMin: node.tempoGastoMin ?? null,
         concluidaEm: node.concluidaEm ?? null,
+        assignee: node.assignee ? { id: node.assignee.id, nome: node.assignee.nome } : null,
         projeto: { id: raiz.id, titulo: raiz.titulo, tipo: raiz.tipo, nivel: raiz.nivel },
       });
     } else {
@@ -97,6 +103,8 @@ export function mapTarefa(t: any) {
     criadaEm: t.criadaEm,
     atualizadaEm: t.atualizadaEm,
     tarefaPaiId: t.tarefaPaiId,
+    assigneeId: t.assigneeId ?? null,
+    assignee: t.assignee ? { id: t.assignee.id, nome: t.assignee.nome } : null,
     tags: (t.tags ?? []).map((tt: any) => ({ id: tt.tag.id, nome: tt.tag.nome, cor: tt.tag.cor })),
     tarefas: (t.tarefas ?? []).map(mapFilha),
   };

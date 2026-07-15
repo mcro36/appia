@@ -5,12 +5,22 @@ import {
   type Content,
 } from "@google/generative-ai";
 import { prisma } from "@/lib/prisma";
+import { tarefaDaWorkspace } from "@/lib/escopo";
 import { PRIORIDADES, RECORRENCIAS, STATUS, TIPOS } from "@/lib/tarefas";
 import { includeTarefaDetalhe, flattenFolhas } from "@/lib/mapTarefa";
 import { ocupadosDoDia, proximaVaga, mesmoDia, type ConfigDTO, type ReuniaoSlim } from "@/lib/agenda";
 import { dadosAoConcluir } from "@/lib/recorrencia";
 
 const MODELO = "gemini-2.5-flash";
+
+// Contexto do usuário logado — injetado pelo servidor (NUNCA vem do prompt).
+// Toda ação da IA é escopada por ele: a IA não lê nem altera dados de outra conta.
+type Ctx = { usuarioId: string; workspaceId: string; papel: string };
+
+// Ações que mutam dados — bloqueadas para o papel "leitor".
+const ACOES_MUTANTES = new Set([
+  "criar_tarefa", "criar_subtarefa", "atualizar_tarefa", "concluir_tarefa", "remover_tarefa", "planejar_dia",
+]);
 
 function client() {
   const apiKey = process.env.GEMINI_API_KEY;
@@ -134,14 +144,14 @@ const dataOuNull = (v: unknown) => {
 
 export type AcaoExecutada = { funcao: string; resultado: unknown };
 
-async function resolverTags(tagsStr: string | undefined): Promise<string[]> {
+async function resolverTags(tagsStr: string | undefined, workspaceId: string): Promise<string[]> {
   if (!tagsStr) return [];
   const nomes = tagsStr.split(",").map((s) => s.trim()).filter(Boolean);
   const ids: string[] = [];
   for (const nome of nomes) {
     const tag = await prisma.tag.upsert({
-      where: { nome },
-      create: { nome },
+      where: { workspaceId_nome: { workspaceId, nome } },
+      create: { nome, workspaceId },
       update: {},
     });
     ids.push(tag.id);
@@ -149,12 +159,14 @@ async function resolverTags(tagsStr: string | undefined): Promise<string[]> {
   return ids;
 }
 
-async function executar(nome: string, args: Args): Promise<unknown> {
+async function executar(nome: string, args: Args, ctx: Ctx): Promise<unknown> {
+  if (ctx.papel === "leitor" && ACOES_MUTANTES.has(nome))
+    return { erro: "Você tem acesso somente leitura neste espaço." };
   switch (nome) {
     case "listar_tarefas": {
       const status = str(args.status);
       const tarefas = await prisma.tarefa.findMany({
-        where: status ? { status } : undefined,
+        where: { workspaceId: ctx.workspaceId, ...(status ? { status } : {}) },
         orderBy: [{ prazo: "asc" }, { criadaEm: "desc" }],
       });
       return tarefas.map((t) => ({
@@ -168,7 +180,7 @@ async function executar(nome: string, args: Args): Promise<unknown> {
     case "criar_tarefa": {
       const titulo = str(args.titulo);
       if (!titulo) return { erro: "Título é obrigatório." };
-      const tagIds = await resolverTags(str(args.tags));
+      const tagIds = await resolverTags(str(args.tags), ctx.workspaceId);
       const t = await prisma.tarefa.create({
         data: {
           tipo: str(args.tipo) ?? "atividade",
@@ -179,6 +191,7 @@ async function executar(nome: string, args: Args): Promise<unknown> {
           status: str(args.status) ?? "a_fazer",
           recorrencia: str(args.recorrencia) ?? "none",
           duracaoMin: typeof args.duracaoMin === "number" ? Math.round(args.duracaoMin) : null,
+          workspaceId: ctx.workspaceId,
           tags: tagIds.length ? { create: tagIds.map((tagId) => ({ tagId })) } : undefined,
         },
       });
@@ -188,6 +201,8 @@ async function executar(nome: string, args: Args): Promise<unknown> {
       const tarefaPaiId = str(args.tarefaPaiId);
       const titulo = str(args.titulo);
       if (!tarefaPaiId || !titulo) return { erro: "tarefaPaiId e título são obrigatórios." };
+      // Confirma que o pai é da workspace do usuário antes de anexar a filha.
+      if (!(await tarefaDaWorkspace(tarefaPaiId, ctx.workspaceId))) return { erro: "Tarefa pai não encontrada." };
       const t = await prisma.tarefa.create({
         data: {
           titulo,
@@ -196,6 +211,7 @@ async function executar(nome: string, args: Args): Promise<unknown> {
           duracaoMin: typeof args.duracaoMin === "number" ? Math.round(args.duracaoMin) : null,
           prioridade: str(args.prioridade) ?? "media",
           tarefaPaiId,
+          workspaceId: ctx.workspaceId,
         },
       });
       return { ok: true, id: t.id, titulo: t.titulo };
@@ -203,6 +219,7 @@ async function executar(nome: string, args: Args): Promise<unknown> {
     case "atualizar_tarefa": {
       const id = str(args.id);
       if (!id) return { erro: "id é obrigatório." };
+      if (!(await tarefaDaWorkspace(id, ctx.workspaceId))) return { erro: "Tarefa não encontrada." };
       const data: Record<string, unknown> = {};
       if (args.titulo !== undefined) data.titulo = str(args.titulo);
       if (args.descricao !== undefined) data.descricao = str(args.descricao) ?? null;
@@ -221,7 +238,7 @@ async function executar(nome: string, args: Args): Promise<unknown> {
       }
       if (args.recorrencia !== undefined) data.recorrencia = str(args.recorrencia);
       if (args.tags !== undefined) {
-        const tagIds = await resolverTags(str(args.tags));
+        const tagIds = await resolverTags(str(args.tags), ctx.workspaceId);
         data.tags = { deleteMany: {}, create: tagIds.map((tagId) => ({ tagId })) };
       }
       try {
@@ -234,9 +251,9 @@ async function executar(nome: string, args: Args): Promise<unknown> {
     case "planejar_dia": {
       const dia = new Date();
       // Sequencial: o pooler usa connection_limit=1 (paralelizar dá P2024).
-      const raizes = await prisma.tarefa.findMany({ where: { tarefaPaiId: null }, include: includeTarefaDetalhe });
-      const reunioesRow = await prisma.reuniao.findMany({ where: { dataHora: { not: null } }, select: { id: true, titulo: true, dataHora: true, duracaoMin: true } });
-      const cfgRow = await prisma.configuracao.upsert({ where: { id: 1 }, create: { id: 1 }, update: {} });
+      const raizes = await prisma.tarefa.findMany({ where: { tarefaPaiId: null, workspaceId: ctx.workspaceId }, include: includeTarefaDetalhe });
+      const reunioesRow = await prisma.reuniao.findMany({ where: { dataHora: { not: null }, tarefa: { workspaceId: ctx.workspaceId } }, select: { id: true, titulo: true, dataHora: true, duracaoMin: true } });
+      const cfgRow = await prisma.configuracao.upsert({ where: { usuarioId: ctx.usuarioId }, create: { usuarioId: ctx.usuarioId }, update: {} });
       const cfg: ConfigDTO = {
         expedienteInicioMin: cfgRow.expedienteInicioMin,
         expedienteFimMin: cfgRow.expedienteFimMin,
@@ -277,6 +294,7 @@ async function executar(nome: string, args: Args): Promise<unknown> {
     case "concluir_tarefa": {
       const id = str(args.id);
       if (!id) return { erro: "id é obrigatório." };
+      if (!(await tarefaDaWorkspace(id, ctx.workspaceId))) return { erro: "Tarefa não encontrada." };
       try {
         const atual = await prisma.tarefa.findUnique({
           where: { id },
@@ -293,6 +311,7 @@ async function executar(nome: string, args: Args): Promise<unknown> {
     case "remover_tarefa": {
       const id = str(args.id);
       if (!id) return { erro: "id é obrigatório." };
+      if (!(await tarefaDaWorkspace(id, ctx.workspaceId))) return { erro: "Tarefa não encontrada." };
       try {
         const t = await prisma.tarefa.delete({ where: { id } });
         return { ok: true, id: t.id, titulo: t.titulo };
@@ -307,9 +326,9 @@ async function executar(nome: string, args: Args): Promise<unknown> {
 
 // ---- Orquestração de um turno de conversa ----------------------------------
 
-async function snapshotTarefas(): Promise<string> {
+async function snapshotTarefas(workspaceId: string): Promise<string> {
   const tarefas = await prisma.tarefa.findMany({
-    where: { tarefaPaiId: null },
+    where: { tarefaPaiId: null, workspaceId },
     orderBy: [{ status: "asc" }, { prazo: "asc" }],
     take: 100,
     include: { tags: { include: { tag: true } }, tarefas: true },
@@ -384,8 +403,9 @@ export type TurnoResposta = {
 export async function processarMensagem(
   mensagem: string,
   historico: Content[] = [],
+  ctx: Ctx,
 ): Promise<TurnoResposta> {
-  const snapshot = await snapshotTarefas();
+  const snapshot = await snapshotTarefas(ctx.workspaceId);
   const model = client().getGenerativeModel({
     model: MODELO,
     systemInstruction: instrucaoSistema(snapshot),
@@ -407,7 +427,7 @@ export async function processarMensagem(
 
       const respostas = [];
       for (const chamada of chamadas) {
-        const resultado = await executar(chamada.name, (chamada.args ?? {}) as Args);
+        const resultado = await executar(chamada.name, (chamada.args ?? {}) as Args, ctx);
         acoes.push({ funcao: chamada.name, resultado });
         respostas.push({
           functionResponse: { name: chamada.name, response: { resultado } },

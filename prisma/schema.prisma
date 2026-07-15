@@ -15,11 +15,88 @@ datasource db {
   directUrl = env("DIRECT_URL")
 }
 
+// ── Multiusuário ────────────────────────────────────────────────────────────
+// Propriedade do dado é ancorada em Workspace (não no usuário) desde a Fase A:
+// cada usuário nasce com uma workspace pessoal. Na Fase B a mesma workspace
+// passa a ter vários membros — sem re-chavear nada.
+
+model Usuario {
+  id                String            @id @default(cuid())
+  email             String            @unique
+  nome              String
+  senhaHash         String
+  criadoEm          DateTime          @default(now())
+  membros           Membro[]
+  chats             MensagemChat[]
+  pushes            PushSubscription[]
+  config            Configuracao?
+  tarefasAtribuidas Tarefa[]          @relation("Assignee")
+  atividades        Atividade[]
+}
+
+model Workspace {
+  id       String    @id @default(cuid())
+  nome     String
+  criadaEm DateTime  @default(now())
+  membros    Membro[]
+  tarefas    Tarefa[]
+  tags       Tag[]
+  convites   Convite[]
+  atividades Atividade[]
+}
+
+model Membro {
+  usuarioId   String
+  workspaceId String
+  papel       String    @default("owner") // owner | admin | membro | leitor
+  criadoEm    DateTime  @default(now())
+  usuario     Usuario   @relation(fields: [usuarioId], references: [id], onDelete: Cascade)
+  workspace   Workspace @relation(fields: [workspaceId], references: [id], onDelete: Cascade)
+  @@id([usuarioId, workspaceId])
+}
+
+// Timeline de uma tarefa: comentários (tipo="comentario", com `texto` do autor)
+// e eventos do sistema (criou/status/responsavel, com `texto` = resumo).
+model Atividade {
+  id          String    @id @default(cuid())
+  workspaceId String
+  workspace   Workspace @relation(fields: [workspaceId], references: [id], onDelete: Cascade)
+  tarefaId    String?
+  tarefa      Tarefa?   @relation(fields: [tarefaId], references: [id], onDelete: Cascade)
+  usuarioId   String
+  usuario     Usuario   @relation(fields: [usuarioId], references: [id], onDelete: Cascade)
+  tipo        String // comentario | criou | status | responsavel
+  texto       String?
+  criadoEm    DateTime  @default(now())
+
+  @@index([tarefaId, criadoEm])
+  @@index([workspaceId, criadoEm])
+}
+
+// Convite para entrar numa workspace: aceito por link (token). Sem envio de
+// email no free tier — o criador compartilha o link manualmente.
+model Convite {
+  id          String    @id @default(cuid())
+  token       String    @unique @default(cuid())
+  workspaceId String
+  workspace   Workspace @relation(fields: [workspaceId], references: [id], onDelete: Cascade)
+  papel       String    @default("membro") // papel concedido ao aceitar
+  email       String? // opcional: sugestão de destinatário
+  criadoPor   String // usuarioId de quem convidou
+  expiraEm    DateTime
+  aceitoEm    DateTime?
+  criadoEm    DateTime  @default(now())
+}
+
 model Tag {
-  id       String      @id @default(cuid())
-  nome     String      @unique
-  cor      String      @default("#6366f1")
-  tarefas  TarefaTag[]
+  id          String      @id @default(cuid())
+  nome        String
+  cor         String      @default("#6366f1")
+  tarefas     TarefaTag[]
+  workspaceId String
+  workspace   Workspace   @relation(fields: [workspaceId], references: [id], onDelete: Cascade)
+  // Unicidade por workspace: usuários diferentes podem ter a mesma tag.
+  @@unique([workspaceId, nome])
 }
 
 model TarefaTag {
@@ -58,6 +135,13 @@ model Tarefa {
   dependeDe      TarefaDep[]     @relation("TarefaDepende")
   dependentes    TarefaDep[]     @relation("TarefaDependente")
   reunioes       Reuniao[]
+  // Multiusuário: dono (workspace) em toda linha; assignee só é usado na Fase B.
+  workspaceId    String
+  workspace      Workspace       @relation(fields: [workspaceId], references: [id], onDelete: Cascade)
+  assigneeId     String?
+  assignee       Usuario?        @relation("Assignee", fields: [assigneeId], references: [id], onDelete: SetNull)
+  atividades     Atividade[]
+  @@index([workspaceId])
 }
 
 model TarefaDep {
@@ -83,19 +167,22 @@ model MensagemChat {
   conteudo       String
   acaoExecutada  String?
   timestamp      DateTime @default(now())
+  usuarioId      String
+  usuario        Usuario  @relation(fields: [usuarioId], references: [id], onDelete: Cascade)
 }
 
 // Preferências do planejador diário (linha única, id=1). Tempos em minutos
 // desde a meia-noite (ex.: 540 = 09:00).
 model Configuracao {
-  id               Int      @id @default(1)
-  expedienteInicioMin Int   @default(540)
-  expedienteFimMin    Int   @default(1080)
-  almocoInicioMin     Int?  @default(720)
-  almocoFimMin        Int?  @default(780)
-  duracaoPadraoMin    Int   @default(10)
-  bufferMin           Int   @default(0)
-  atualizadaEm     DateTime @updatedAt
+  usuarioId           String   @id
+  usuario             Usuario  @relation(fields: [usuarioId], references: [id], onDelete: Cascade)
+  expedienteInicioMin Int      @default(540)
+  expedienteFimMin    Int      @default(1080)
+  almocoInicioMin     Int?     @default(720)
+  almocoFimMin        Int?     @default(780)
+  duracaoPadraoMin    Int      @default(10)
+  bufferMin           Int      @default(0)
+  atualizadaEm        DateTime @updatedAt
 }
 
 // Inscrição de push do navegador (PushSubscription serializada)
@@ -105,6 +192,8 @@ model PushSubscription {
   p256dh    String
   auth      String
   criadaEm  DateTime @default(now())
+  usuarioId String
+  usuario   Usuario  @relation(fields: [usuarioId], references: [id], onDelete: Cascade)
 }
 
 // Registro de notificação de prazo já enviada — evita reenvio (nivel: "vencendo" | "atrasada")

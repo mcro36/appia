@@ -1,5 +1,6 @@
 import { NextResponse } from "next/server";
 import { prisma } from "@/lib/prisma";
+import { lerContexto } from "@/lib/contexto";
 
 // eslint-disable-next-line @typescript-eslint/no-explicit-any
 function mapConfig(c: any) {
@@ -15,12 +16,20 @@ function mapConfig(c: any) {
 
 // GET /api/configuracao
 export async function GET() {
-  const config = await prisma.configuracao.upsert({ where: { id: 1 }, create: { id: 1 }, update: {} });
+  const ctx = await lerContexto();
+  if (!ctx) return NextResponse.json({ erro: "Não autenticado." }, { status: 401 });
+  const config = await prisma.configuracao.upsert({
+    where: { usuarioId: ctx.usuarioId },
+    create: { usuarioId: ctx.usuarioId },
+    update: {},
+  });
   return NextResponse.json(mapConfig(config));
 }
 
 // PATCH /api/configuracao
 export async function PATCH(req: Request) {
+  const ctx = await lerContexto();
+  if (!ctx) return NextResponse.json({ erro: "Não autenticado." }, { status: 401 });
   const body = await req.json().catch(() => null);
   if (!body || typeof body !== "object")
     return NextResponse.json({ erro: "Corpo inválido." }, { status: 400 });
@@ -38,8 +47,8 @@ export async function PATCH(req: Request) {
   }
 
   const config = await prisma.configuracao.upsert({
-    where: { id: 1 },
-    create: { id: 1, ...data },
+    where: { usuarioId: ctx.usuarioId },
+    create: { usuarioId: ctx.usuarioId, ...data },
     update: data,
   });
   return NextResponse.json(mapConfig(config));

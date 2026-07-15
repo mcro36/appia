@@ -1,14 +1,14 @@
 "use client";
 
-import { useEffect, useMemo, useState } from "react";
+import { useEffect, useMemo, useState, type ReactNode } from "react";
 import { format, addDays, isToday } from "date-fns";
 import { ptBR } from "date-fns/locale";
 import {
   ChevronLeft, ChevronRight, AlertTriangle, LayoutGrid, Settings2, Sparkles, Sunset,
-  Square, Timer, CalendarRange,
+  Square, Timer, CalendarRange, CalendarDays,
 } from "lucide-react";
 import {
-  bucketsDoDia, bucketsGeral, agruparPorProjeto, ocupadosDoDia, proximaVaga, capacidadeDoDia,
+  bucketsDoDia, agruparPorProjeto, ocupadosDoDia, proximaVaga, capacidadeDoDia,
   mesmoDia, type FolhaDTO, type ReuniaoSlim, type ConfigDTO,
 } from "@/lib/agenda";
 import type { Status } from "@/lib/tarefas";
@@ -20,6 +20,7 @@ import { VisaoSemana } from "@/components/views/VisaoSemana";
 import { CartaoFolha } from "@/components/planejador/CartaoFolha";
 import { EncerrarPopover } from "@/components/planejador/EncerrarPopover";
 import { ConfigPopover } from "@/components/planejador/ConfigPopover";
+import { WorkloadDia } from "@/components/planejador/WorkloadDia";
 
 type Props = {
   folhas: FolhaDTO[];
@@ -28,6 +29,7 @@ type Props = {
   carregando: boolean;
   onAplicar: (id: string, dados: MudancaFolha) => void;
   onSalvarConfig: (dados: Partial<ConfigDTO>) => void;
+  slotGeral: ReactNode;
 };
 
 const COLUNAS: { status: Status; vazio: string }[] = [
@@ -36,12 +38,11 @@ const COLUNAS: { status: Status; vazio: string }[] = [
   { status: "concluido", vazio: "Nada concluído" },
 ];
 
-// Foco persistido: o cronômetro sobrevive a troca de visão e reload da página.
 const FOCO_KEY = "planejador.foco";
 type Foco = { id: string; titulo: string; inicioTs: number };
 
-export function PlanejadorDia({ folhas, reunioes, config, carregando, onAplicar, onSalvarConfig }: Props) {
-  const [modo, setModo] = useState<"geral" | "dia" | "semana">("dia");
+export function PlanejadorDia({ folhas, reunioes, config, carregando, onAplicar, onSalvarConfig, slotGeral }: Props) {
+  const [modo, setModo] = useState<"geral" | "dia" | "semana">("geral");
   const [dia, setDia] = useState<Date>(() => new Date());
   const [arrastando, setArrastando] = useState<string | null>(null);
   const [colunaAlvo, setColunaAlvo] = useState<Status | null>(null);
@@ -50,21 +51,19 @@ export function PlanejadorDia({ folhas, reunioes, config, carregando, onAplicar,
   const [foco, setFoco] = useState<Foco | null>(null);
   const [, setTick] = useState(0);
 
-  // Tique de 1s para atualizar o cronômetro enquanto há foco ativo.
   useEffect(() => {
     if (!foco) return;
     const t = setInterval(() => setTick((x) => x + 1), 1000);
     return () => clearInterval(t);
   }, [foco]);
 
-  // Restaura o foco salvo (ao montar) e persiste mudanças — evita perder o
-  // tempo decorrido ao trocar de visão ou recarregar a página.
   useEffect(() => {
     try {
       const s = localStorage.getItem(FOCO_KEY);
       if (s) setFoco(JSON.parse(s) as Foco);
     } catch { /* ignore */ }
   }, []);
+
   useEffect(() => {
     try {
       if (foco) localStorage.setItem(FOCO_KEY, JSON.stringify(foco));
@@ -73,15 +72,13 @@ export function PlanejadorDia({ folhas, reunioes, config, carregando, onAplicar,
   }, [foco]);
 
   const buckets = useMemo(
-    () => (modo === "geral" ? bucketsGeral(folhas) : bucketsDoDia(folhas, dia, new Date())),
-    [folhas, modo, dia],
+    () => bucketsDoDia(folhas, dia, new Date()),
+    [folhas, dia],
   );
 
-  const diaAlvo = modo === "dia" ? dia : new Date();
-
   const capacidade = useMemo(
-    () => capacidadeDoDia(reunioes, buckets.emAndamento, diaAlvo, config),
-    [reunioes, buckets.emAndamento, diaAlvo, config],
+    () => capacidadeDoDia(reunioes, buckets.emAndamento, dia, config),
+    [reunioes, buckets.emAndamento, dia, config],
   );
   const sobrecarregado = capacidade.planejadoMin > capacidade.disponivelMin;
 
@@ -95,23 +92,22 @@ export function PlanejadorDia({ folhas, reunioes, config, carregando, onAplicar,
 
     if (coluna === "em_andamento") {
       const blocos = folhas.filter((x) => x.id !== id && x.status === "em_andamento");
-      const ocupados = ocupadosDoDia(reunioes, blocos, diaAlvo, config);
+      const ocupados = ocupadosDoDia(reunioes, blocos, dia, config);
       const dur = f.duracaoMin ?? config.duracaoPadraoMin;
-      const { inicio } = proximaVaga(diaAlvo, ocupados, dur, new Date(), config);
+      const { inicio } = proximaVaga(dia, ocupados, dur, new Date(), config);
       onAplicar(id, { status: "em_andamento", dataInicio: inicio, duracaoMin: dur });
     } else if (coluna === "a_fazer") {
       onAplicar(id, { status: "a_fazer", dataInicio: null });
     } else {
-      onAplicar(id, { status: "concluido", dataInicio: f.dataInicio ?? new Date(diaAlvo).toISOString() });
+      onAplicar(id, { status: "concluido", dataInicio: f.dataInicio ?? new Date(dia).toISOString() });
     }
   }
 
   function adiar(f: FolhaDTO) {
-    const base = f.dataInicio ? new Date(f.dataInicio) : new Date(diaAlvo);
+    const base = f.dataInicio ? new Date(f.dataInicio) : new Date(dia);
     onAplicar(f.id, { status: "em_andamento", dataInicio: addDays(base, 1).toISOString() });
   }
 
-  // Distribui as pendentes nos horários livres do dia até encher o expediente.
   function planejarDia() {
     const ordemPri: Record<string, number> = { alta: 0, media: 1, baixa: 2 };
     const pendentes = buckets.aFazer
@@ -121,12 +117,12 @@ export function PlanejadorDia({ folhas, reunioes, config, carregando, onAplicar,
         (ordemPri[a.prioridade] - ordemPri[b.prioridade]) ||
         (a.prazo ?? "9999").localeCompare(b.prazo ?? "9999"));
     const blocos = folhas
-      .filter((x) => x.status === "em_andamento" && mesmoDia(x.dataInicio, diaAlvo))
+      .filter((x) => x.status === "em_andamento" && mesmoDia(x.dataInicio, dia))
       .map((x) => ({ dataInicio: x.dataInicio, duracaoMin: x.duracaoMin }));
     for (const f of pendentes) {
-      const ocupados = ocupadosDoDia(reunioes, blocos, diaAlvo, config);
+      const ocupados = ocupadosDoDia(reunioes, blocos, dia, config);
       const dur = f.duracaoMin ?? config.duracaoPadraoMin;
-      const { inicio, estouro } = proximaVaga(diaAlvo, ocupados, dur, new Date(), config);
+      const { inicio, estouro } = proximaVaga(dia, ocupados, dur, new Date(), config);
       if (estouro) break;
       onAplicar(f.id, { status: "em_andamento", dataInicio: inicio, duracaoMin: dur });
       blocos.push({ dataInicio: inicio, duracaoMin: dur });
@@ -145,22 +141,27 @@ export function PlanejadorDia({ folhas, reunioes, config, carregando, onAplicar,
     setFoco(null);
   }
 
-  // Encerramento: leva as tarefas em andamento não concluídas para amanhã.
   function moverPendentesAmanha() {
     for (const f of buckets.emAndamento) {
-      const base = f.dataInicio ? new Date(f.dataInicio) : new Date(diaAlvo);
+      const base = f.dataInicio ? new Date(f.dataInicio) : new Date(dia);
       onAplicar(f.id, { dataInicio: addDays(base, 1).toISOString() });
     }
     setEncerrarAberto(false);
   }
 
   const rotuloDia = isToday(dia) ? "Hoje" : format(dia, "EEE, dd 'de' MMM", { locale: ptBR });
-
   const cronometro = foco ? Date.now() - foco.inicioTs : 0;
   const fmtCron = (ms: number) => {
     const s = Math.floor(ms / 1000);
     return `${String(Math.floor(s / 60)).padStart(2, "0")}:${String(s % 60).padStart(2, "0")}`;
   };
+
+  const btnModo = (ativo: boolean) =>
+    `inline-flex items-center gap-1.5 rounded-lg border px-3 py-1.5 text-sm transition-colors ${
+      ativo
+        ? "border-indigo-600 bg-indigo-600 text-white"
+        : "border-black/10 text-zinc-600 hover:bg-black/5 dark:border-white/10 dark:text-zinc-300 dark:hover:bg-white/5"
+    }`;
 
   return (
     <div className="flex flex-col gap-4">
@@ -179,47 +180,40 @@ export function PlanejadorDia({ folhas, reunioes, config, carregando, onAplicar,
         </div>
       )}
 
-      {/* Barra de navegação do dia */}
+      {/* Barra de navegação */}
       <div className="flex flex-wrap items-center gap-2">
-        <button
-          onClick={() => setModo("geral")}
-          className={`inline-flex items-center gap-1.5 rounded-lg border px-3 py-1.5 text-sm transition-colors ${
-            modo === "geral"
-              ? "border-indigo-600 bg-indigo-600 text-white"
-              : "border-black/10 text-zinc-600 hover:bg-black/5 dark:border-white/10 dark:text-zinc-300 dark:hover:bg-white/5"
-          }`}
-        >
+        {/* Abas de modo */}
+        <button onClick={() => setModo("geral")} className={btnModo(modo === "geral")}>
           <LayoutGrid size={15} /> Geral
         </button>
-
-        <button
-          onClick={() => setModo("semana")}
-          className={`inline-flex items-center gap-1.5 rounded-lg border px-3 py-1.5 text-sm transition-colors ${
-            modo === "semana"
-              ? "border-indigo-600 bg-indigo-600 text-white"
-              : "border-black/10 text-zinc-600 hover:bg-black/5 dark:border-white/10 dark:text-zinc-300 dark:hover:bg-white/5"
-          }`}
-        >
+        <button onClick={() => setModo("dia")} className={btnModo(modo === "dia")}>
+          <CalendarDays size={15} /> Dia
+        </button>
+        <button onClick={() => setModo("semana")} className={btnModo(modo === "semana")}>
           <CalendarRange size={15} /> Semana
         </button>
 
-        <div className="relative">
-          <button
-            onClick={() => setConfigAberta((v) => !v)}
-            aria-label="Configurar expediente"
-            className="rounded-lg border border-black/10 p-1.5 text-zinc-600 hover:bg-black/5 dark:border-white/10 dark:text-zinc-300 dark:hover:bg-white/5"
-          >
-            <Settings2 size={16} />
-          </button>
-          {configAberta && (
-            <ConfigPopover
-              config={config}
-              onFechar={() => setConfigAberta(false)}
-              onSalvar={(dados) => { onSalvarConfig(dados); setConfigAberta(false); }}
-            />
-          )}
-        </div>
+        {/* Config — só nos modos de agenda */}
+        {modo !== "geral" && (
+          <div className="relative">
+            <button
+              onClick={() => setConfigAberta((v) => !v)}
+              aria-label="Configurar expediente"
+              className="rounded-lg border border-black/10 p-1.5 text-zinc-600 hover:bg-black/5 dark:border-white/10 dark:text-zinc-300 dark:hover:bg-white/5"
+            >
+              <Settings2 size={16} />
+            </button>
+            {configAberta && (
+              <ConfigPopover
+                config={config}
+                onFechar={() => setConfigAberta(false)}
+                onSalvar={(dados) => { onSalvarConfig(dados); setConfigAberta(false); }}
+              />
+            )}
+          </div>
+        )}
 
+        {/* Controles específicos do dia */}
         {modo === "dia" && (
           <>
             <button
@@ -263,35 +257,37 @@ export function PlanejadorDia({ folhas, reunioes, config, carregando, onAplicar,
           </>
         )}
 
-        <div className="ml-auto flex items-center gap-1">
-          <button
-            onClick={() => { const p = modo === "semana" ? -7 : -1; if (modo !== "semana") setModo("dia"); setDia((d) => addDays(d, p)); }}
-            aria-label="Anterior"
-            className="rounded-lg border border-black/10 p-1.5 text-zinc-600 hover:bg-black/5 dark:border-white/10 dark:text-zinc-300 dark:hover:bg-white/5"
-          >
-            <ChevronLeft size={16} />
-          </button>
-          <button
-            onClick={() => { if (modo !== "semana") setModo("dia"); setDia(new Date()); }}
-            className={`rounded-lg border px-3 py-1.5 text-sm font-medium transition-colors ${
-              modo === "dia" || modo === "semana"
-                ? "border-indigo-600 bg-indigo-600 text-white"
-                : "border-black/10 text-zinc-600 hover:bg-black/5 dark:border-white/10 dark:text-zinc-300 dark:hover:bg-white/5"
-            }`}
-          >
-            {modo === "dia" ? rotuloDia : modo === "semana" ? "Esta semana" : "Hoje"}
-          </button>
-          <button
-            onClick={() => { const p = modo === "semana" ? 7 : 1; if (modo !== "semana") setModo("dia"); setDia((d) => addDays(d, p)); }}
-            aria-label="Próximo"
-            className="rounded-lg border border-black/10 p-1.5 text-zinc-600 hover:bg-black/5 dark:border-white/10 dark:text-zinc-300 dark:hover:bg-white/5"
-          >
-            <ChevronRight size={16} />
-          </button>
-        </div>
+        {/* Navegação de data — só para Dia e Semana */}
+        {modo !== "geral" && (
+          <div className="ml-auto flex items-center gap-1">
+            <button
+              onClick={() => setDia((d) => addDays(d, modo === "semana" ? -7 : -1))}
+              aria-label="Anterior"
+              className="rounded-lg border border-black/10 p-1.5 text-zinc-600 hover:bg-black/5 dark:border-white/10 dark:text-zinc-300 dark:hover:bg-white/5"
+            >
+              <ChevronLeft size={16} />
+            </button>
+            <button
+              onClick={() => setDia(new Date())}
+              className="rounded-lg border border-indigo-600 bg-indigo-600 px-3 py-1.5 text-sm font-medium text-white transition-colors hover:bg-indigo-500"
+            >
+              {modo === "semana" ? "Esta semana" : rotuloDia}
+            </button>
+            <button
+              onClick={() => setDia((d) => addDays(d, modo === "semana" ? 7 : 1))}
+              aria-label="Próximo"
+              className="rounded-lg border border-black/10 p-1.5 text-zinc-600 hover:bg-black/5 dark:border-white/10 dark:text-zinc-300 dark:hover:bg-white/5"
+            >
+              <ChevronRight size={16} />
+            </button>
+          </div>
+        )}
       </div>
 
-      {carregando ? (
+      {/* Conteúdo */}
+      {modo === "geral" ? (
+        slotGeral
+      ) : carregando ? (
         <p className="text-sm text-zinc-500">Carregando…</p>
       ) : modo === "semana" ? (
         <VisaoSemana
@@ -302,93 +298,94 @@ export function PlanejadorDia({ folhas, reunioes, config, carregando, onAplicar,
           onSelecionarDia={(d) => { setModo("dia"); setDia(d); }}
         />
       ) : (
-        <div className="grid gap-4 md:grid-cols-3">
-          {COLUNAS.map(({ status, vazio }) => {
-            const itens =
-              status === "a_fazer" ? buckets.aFazer
-              : status === "em_andamento" ? buckets.emAndamento
-              : buckets.concluido;
-            const realce = colunaAlvo === status;
+        <>
+          <div className="grid gap-4 md:grid-cols-3">
+            {COLUNAS.map(({ status, vazio }) => {
+              const itens =
+                status === "a_fazer" ? buckets.aFazer
+                : status === "em_andamento" ? buckets.emAndamento
+                : buckets.concluido;
+              const realce = colunaAlvo === status;
 
-            return (
-              <div
-                key={status}
-                onDragOver={(e) => { e.preventDefault(); setColunaAlvo(status); }}
-                onDragLeave={() => setColunaAlvo((c) => (c === status ? null : c))}
-                onDrop={() => soltar(status)}
-                className={`flex min-h-40 flex-col rounded-xl border p-3 transition-colors ${
-                  realce
-                    ? "border-indigo-400 bg-indigo-50/60 dark:bg-indigo-950/30"
-                    : "border-black/5 bg-black/[0.02] dark:border-white/5 dark:bg-white/[0.02]"
-                }`}
-              >
-                <div className="mb-3 flex items-center gap-2 px-1">
-                  <span className={`h-2.5 w-2.5 rounded-full ${STATUS_COR[status].ponto}`} />
-                  <span className="text-sm font-semibold">{STATUS_LABEL[status]}</span>
-                  <span className="ml-auto rounded-full bg-black/5 px-2 py-0.5 text-xs text-zinc-500 dark:bg-white/10">
-                    {itens.length}
-                  </span>
-                </div>
+              return (
+                <div
+                  key={status}
+                  onDragOver={(e) => { e.preventDefault(); setColunaAlvo(status); }}
+                  onDragLeave={() => setColunaAlvo((c) => (c === status ? null : c))}
+                  onDrop={() => soltar(status)}
+                  className={`flex min-h-40 flex-col rounded-xl border p-3 transition-colors ${
+                    realce
+                      ? "border-indigo-400 bg-indigo-50/60 dark:bg-indigo-950/30"
+                      : "border-black/5 bg-black/[0.02] dark:border-white/5 dark:bg-white/[0.02]"
+                  }`}
+                >
+                  <div className="mb-3 flex items-center gap-2 px-1">
+                    <span className={`h-2.5 w-2.5 rounded-full ${STATUS_COR[status].ponto}`} />
+                    <span className="text-sm font-semibold">{STATUS_LABEL[status]}</span>
+                    <span className="ml-auto rounded-full bg-black/5 px-2 py-0.5 text-xs text-zinc-500 dark:bg-white/10">
+                      {itens.length}
+                    </span>
+                  </div>
 
-                <div className="flex flex-col gap-2">
-                  {itens.length === 0 && (
-                    <p className="rounded-lg border border-dashed border-black/10 px-3 py-6 text-center text-xs text-zinc-400 dark:border-white/10">
-                      {vazio}
-                    </p>
-                  )}
+                  <div className="flex flex-col gap-2">
+                    {itens.length === 0 && (
+                      <p className="rounded-lg border border-dashed border-black/10 px-3 py-6 text-center text-xs text-zinc-400 dark:border-white/10">
+                        {vazio}
+                      </p>
+                    )}
 
-                  {status === "a_fazer"
-                    ? agruparPorProjeto(itens).map((grupo) => (
-                        <div key={grupo.projeto.id} className="mb-1">
-                          <div className="mb-1 flex items-center gap-1.5 px-1">
-                            <span className="truncate text-[11px] font-semibold uppercase tracking-wide text-zinc-400">
-                              {grupo.projeto.titulo}
-                            </span>
-                            <span className={`rounded px-1 py-px text-[9px] font-semibold ${NIVEL_COR[grupo.projeto.nivel]}`}>
-                              {NIVEL_LABEL[grupo.projeto.nivel]}
-                            </span>
+                    {status === "a_fazer"
+                      ? agruparPorProjeto(itens).map((grupo) => (
+                          <div key={grupo.projeto.id} className="mb-1">
+                            <div className="mb-1 flex items-center gap-1.5 px-1">
+                              <span className="truncate text-[11px] font-semibold uppercase tracking-wide text-zinc-400">
+                                {grupo.projeto.titulo}
+                              </span>
+                              <span className={`rounded px-1 py-px text-[9px] font-semibold ${NIVEL_COR[grupo.projeto.nivel]}`}>
+                                {NIVEL_LABEL[grupo.projeto.nivel]}
+                              </span>
+                            </div>
+                            <div className="flex flex-col gap-2">
+                              {grupo.itens.map((f) => (
+                                <CartaoFolha
+                                  key={f.id}
+                                  folha={f}
+                                  carryOver={buckets.carryOverIds.has(f.id)}
+                                  onDragStart={() => setArrastando(f.id)}
+                                  onAdiar={f.dataInicio ? () => adiar(f) : undefined}
+                                />
+                              ))}
+                            </div>
                           </div>
-                          <div className="flex flex-col gap-2">
-                            {grupo.itens.map((f) => (
-                              <CartaoFolha
-                                key={f.id}
-                                folha={f}
-                                carryOver={buckets.carryOverIds.has(f.id)}
-                                onDragStart={() => setArrastando(f.id)}
-                                onAdiar={f.dataInicio ? () => adiar(f) : undefined}
-                              />
-                            ))}
-                          </div>
-                        </div>
-                      ))
-                    : itens.map((f) => (
-                        <CartaoFolha
-                          key={f.id}
-                          folha={f}
-                          carryOver={false}
-                          onDragStart={() => setArrastando(f.id)}
-                          onAdiar={status === "em_andamento" ? () => adiar(f) : undefined}
-                          onFoco={status === "em_andamento" ? () => iniciarFoco(f) : undefined}
-                          focando={foco?.id === f.id}
-                        />
-                      ))}
+                        ))
+                      : itens.map((f) => (
+                          <CartaoFolha
+                            key={f.id}
+                            folha={f}
+                            carryOver={false}
+                            onDragStart={() => setArrastando(f.id)}
+                            onAdiar={status === "em_andamento" ? () => adiar(f) : undefined}
+                            onFoco={status === "em_andamento" ? () => iniciarFoco(f) : undefined}
+                            focando={foco?.id === f.id}
+                          />
+                        ))}
+                  </div>
                 </div>
-              </div>
-            );
-          })}
-        </div>
-      )}
+              );
+            })}
+          </div>
 
-      {!carregando && modo === "dia" && (
-        <AgendaDia
-          dia={dia}
-          reunioes={reunioes}
-          blocosTarefa={buckets.emAndamento}
-          config={config}
-          onReagendar={(id, iso) => onAplicar(id, { dataInicio: iso })}
-        />
+          <WorkloadDia folhas={folhas} dia={dia} />
+
+          <AgendaDia
+            dia={dia}
+            reunioes={reunioes}
+            blocosTarefa={buckets.emAndamento}
+            config={config}
+            onReagendar={(id, iso) => onAplicar(id, { dataInicio: iso })}
+          />
+        </>
       )}
     </div>
   );
 }
-

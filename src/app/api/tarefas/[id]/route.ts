@@ -1,6 +1,9 @@
 import { NextResponse } from "next/server";
 import { Prisma } from "@prisma/client";
 import { prisma } from "@/lib/prisma";
+import { lerContexto, podeEscrever } from "@/lib/contexto";
+import { tarefaDaWorkspace } from "@/lib/escopo";
+import { registrarAtividade } from "@/lib/atividade";
 import { isPrioridade, isNivel, isRecorrencia, isStatus, isTipo } from "@/lib/tarefas";
 import { includeTarefaDetalhe as include, mapTarefa } from "@/lib/mapTarefa";
 import { dadosAoConcluir } from "@/lib/recorrencia";
@@ -9,15 +12,23 @@ type Ctx = { params: Promise<{ id: string }> };
 
 // GET /api/tarefas/:id
 export async function GET(_req: Request, { params }: Ctx) {
+  const ctx = await lerContexto();
+  if (!ctx) return NextResponse.json({ erro: "Não autenticado." }, { status: 401 });
   const { id } = await params;
-  const tarefa = await prisma.tarefa.findUnique({ where: { id }, include });
+  const tarefa = await prisma.tarefa.findFirst({ where: { id, workspaceId: ctx.workspaceId }, include });
   if (!tarefa) return NextResponse.json({ erro: "Não encontrado." }, { status: 404 });
   return NextResponse.json(mapTarefa(tarefa));
 }
 
 // PATCH /api/tarefas/:id
 export async function PATCH(req: Request, { params }: Ctx) {
+  const ctx = await lerContexto();
+  if (!ctx) return NextResponse.json({ erro: "Não autenticado." }, { status: 401 });
+  if (!podeEscrever(ctx.papel)) return NextResponse.json({ erro: "Somente leitura neste espaço." }, { status: 403 });
   const { id } = await params;
+  if (!(await tarefaDaWorkspace(id, ctx.workspaceId)))
+    return NextResponse.json({ erro: "Não encontrado." }, { status: 404 });
+
   const body = await req.json().catch(() => null);
   if (!body || typeof body !== "object")
     return NextResponse.json({ erro: "Corpo inválido." }, { status: 400 });
@@ -70,6 +81,18 @@ export async function PATCH(req: Request, { params }: Ctx) {
     data.tempoGastoMin = typeof body.tempoGastoMin === "number" ? Math.round(body.tempoGastoMin) : null;
   if (Array.isArray(body.tagIds))
     data.tags = { deleteMany: {}, create: (body.tagIds as string[]).map((tagId) => ({ tagId })) };
+  if (body.assigneeId !== undefined) {
+    if (body.assigneeId === null) {
+      data.assignee = { disconnect: true };
+    } else if (typeof body.assigneeId === "string") {
+      // Só permite atribuir a alguém que é membro do espaço.
+      const membro = await prisma.membro.findUnique({
+        where: { usuarioId_workspaceId: { usuarioId: body.assigneeId, workspaceId: ctx.workspaceId } },
+      });
+      if (!membro) return NextResponse.json({ erro: "Responsável não é membro do espaço." }, { status: 400 });
+      data.assignee = { connect: { id: body.assigneeId } };
+    }
+  }
 
   // Hábitos: concluir uma tarefa recorrente gera a próxima ocorrência em vez de
   // encerrá-la (regra centralizada em recorrencia.ts).
@@ -83,6 +106,11 @@ export async function PATCH(req: Request, { params }: Ctx) {
 
   try {
     const tarefa = await prisma.tarefa.update({ where: { id }, data, include });
+    // Timeline: registra mudança de status e de responsável (best-effort).
+    if (body.status !== undefined)
+      await registrarAtividade(ctx.workspaceId, ctx.usuarioId, "status", id, tarefa.status).catch(() => {});
+    if (body.assigneeId !== undefined)
+      await registrarAtividade(ctx.workspaceId, ctx.usuarioId, "responsavel", id, tarefa.assignee?.nome ?? null).catch(() => {});
     return NextResponse.json(mapTarefa(tarefa));
   } catch (e) {
     if (e instanceof Prisma.PrismaClientKnownRequestError && e.code === "P2025")
@@ -93,7 +121,12 @@ export async function PATCH(req: Request, { params }: Ctx) {
 
 // DELETE /api/tarefas/:id
 export async function DELETE(_req: Request, { params }: Ctx) {
+  const ctx = await lerContexto();
+  if (!ctx) return NextResponse.json({ erro: "Não autenticado." }, { status: 401 });
+  if (!podeEscrever(ctx.papel)) return NextResponse.json({ erro: "Somente leitura neste espaço." }, { status: 403 });
   const { id } = await params;
+  if (!(await tarefaDaWorkspace(id, ctx.workspaceId)))
+    return NextResponse.json({ erro: "Não encontrado." }, { status: 404 });
   try {
     await prisma.tarefa.delete({ where: { id } });
     return new NextResponse(null, { status: 204 });

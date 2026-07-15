@@ -80,6 +80,12 @@ export function useTarefaDetalhe(
     onAtualizar(tarefa.id, { nivel });
   }
 
+  async function mudarResponsavel(assigneeId: string | null) {
+    const atualizado = await tarefasApi.atualizar(tarefa.id, { assigneeId });
+    setTarefa(atualizado);
+    onAtualizar(tarefa.id, { assigneeId: atualizado.assigneeId, assignee: atualizado.assignee });
+  }
+
   async function adicionarTarefaFilha(titulo: string) {
     const texto = titulo.trim();
     if (!texto) return;
@@ -198,6 +204,7 @@ export function useTarefaDetalhe(
     mudarPrazoRigido,
     mudarTipo,
     mudarNivel,
+    mudarResponsavel,
     adicionarTarefaFilha,
     alternarConclusao,
     renomear,

@@ -1,12 +1,11 @@
 "use client";
 
-import { CalendarRange, Columns3, Table2, CalendarDays, BarChart3, type LucideIcon } from "lucide-react";
+import { Columns3, Table2, CalendarDays, BarChart3, type LucideIcon } from "lucide-react";
 import { useIsPWA } from "@/lib/useIsPWA";
 
-export type Visao = "dia" | "kanban" | "tabela" | "calendario" | "painel";
+export type Visao = "kanban" | "tabela" | "calendario" | "painel";
 
 const OPCOES: { id: Visao; label: string; Icone: LucideIcon }[] = [
-  { id: "dia", label: "Dia", Icone: CalendarRange },
   { id: "kanban", label: "Quadro", Icone: Columns3 },
   { id: "tabela", label: "Tabela", Icone: Table2 },
   { id: "calendario", label: "Calendário", Icone: CalendarDays },

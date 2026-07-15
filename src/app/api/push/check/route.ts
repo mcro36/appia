@@ -47,33 +47,53 @@ export async function GET(req: Request) {
     return NextResponse.json({ ok: true, enviadas: 0, motivo: "sem inscrições" });
   }
 
-  const agora = Date.now();
-  const tarefas = await prisma.tarefa.findMany({
-    where: { tarefaPaiId: null, prazo: { not: null }, status: { not: "concluido" } },
-  });
+  // Job de sistema (sem sessão): agrupa as inscrições por usuário e notifica
+  // cada um SOMENTE sobre as próprias tarefas, com as próprias inscrições.
+  const porUsuario = new Map<string, typeof inscricoes>();
+  for (const s of inscricoes) {
+    if (!s.usuarioId) continue;
+    const arr = porUsuario.get(s.usuarioId) ?? [];
+    arr.push(s);
+    porUsuario.set(s.usuarioId, arr);
+  }
 
+  const agora = Date.now();
   let enviadas = 0;
 
-  for (const tarefa of tarefas) {
-    if (!tarefa.prazo) continue;
-    const nivel = nivelNotificar(tarefa.prazo, agora);
-    if (!nivel) continue;
+  // Sequencial de propósito (pooler connection_limit=1).
+  for (const [usuarioId, subs] of porUsuario) {
+    const membros = await prisma.membro.findMany({ where: { usuarioId }, select: { workspaceId: true } });
+    const workspaceIds = membros.map((m) => m.workspaceId);
+    if (workspaceIds.length === 0) continue;
 
-    // já notificada nesse nível?
-    const jaEnviada = await prisma.notificacaoEnviada.findUnique({
-      where: { tarefaId_nivel: { tarefaId: tarefa.id, nivel } },
-    });
-    if (jaEnviada) continue;
-
-    const payload = JSON.stringify({
-      title: nivel === "atrasada" ? "⚠ Tarefa atrasada" : "🕑 Tarefa vencendo",
-      body: tarefa.titulo,
-      url: "/",
-      tag: `${tarefa.id}:${nivel}`,
+    const tarefas = await prisma.tarefa.findMany({
+      where: {
+        tarefaPaiId: null,
+        prazo: { not: null },
+        status: { not: "concluido" },
+        workspaceId: { in: workspaceIds },
+      },
     });
 
-    await Promise.all(
-      inscricoes.map(async (s) => {
+    for (const tarefa of tarefas) {
+      if (!tarefa.prazo) continue;
+      const nivel = nivelNotificar(tarefa.prazo, agora);
+      if (!nivel) continue;
+
+      // já notificada nesse nível?
+      const jaEnviada = await prisma.notificacaoEnviada.findUnique({
+        where: { tarefaId_nivel: { tarefaId: tarefa.id, nivel } },
+      });
+      if (jaEnviada) continue;
+
+      const payload = JSON.stringify({
+        title: nivel === "atrasada" ? "⚠ Tarefa atrasada" : "🕑 Tarefa vencendo",
+        body: tarefa.titulo,
+        url: "/",
+        tag: `${tarefa.id}:${nivel}`,
+      });
+
+      for (const s of subs) {
         try {
           await webpush.sendNotification(
             { endpoint: s.endpoint, keys: { p256dh: s.p256dh, auth: s.auth } },
@@ -87,10 +107,10 @@ export async function GET(req: Request) {
             await prisma.pushSubscription.deleteMany({ where: { endpoint: s.endpoint } });
           }
         }
-      }),
-    );
+      }
 
-    await prisma.notificacaoEnviada.create({ data: { tarefaId: tarefa.id, nivel } });
+      await prisma.notificacaoEnviada.create({ data: { tarefaId: tarefa.id, nivel } });
+    }
   }
 
   return NextResponse.json({ ok: true, enviadas });

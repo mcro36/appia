@@ -24,6 +24,11 @@ export function CartaoFolha({
   focando?: boolean;
 }) {
   const concluida = folha.status === "concluido";
+  // Prioridade só aparece quando não é a padrão (média) — reduz ruído visual.
+  const mostrarPrioridade = folha.prioridade !== "media";
+  const temTempoReal = folha.tempoGastoMin != null && folha.tempoGastoMin > 0;
+  const temMeta = mostrarPrioridade || !!folha.dataInicio || temTempoReal || carryOver;
+
   return (
     <div
       draggable
@@ -59,28 +64,32 @@ export function CartaoFolha({
         )}
       </div>
 
-      <div className="mt-1.5 flex flex-wrap items-center gap-1.5">
-        <span className={`rounded-full px-2 py-0.5 text-[10px] font-medium ${PRIORIDADE_COR[folha.prioridade]}`}>
-          {PRIORIDADE_LABEL[folha.prioridade]}
-        </span>
-        {folha.dataInicio && (
-          <span className="inline-flex items-center gap-1 text-[11px] text-indigo-600">
-            <Clock size={10} />
-            {format(new Date(folha.dataInicio), "HH:mm")}
-            {folha.duracaoMin ? ` · ${formatarDuracao(folha.duracaoMin)}` : ""}
-          </span>
-        )}
-        {folha.tempoGastoMin != null && folha.tempoGastoMin > 0 && (
-          <span className="inline-flex items-center gap-1 text-[11px] text-emerald-600" title="Tempo real registrado">
-            <Timer size={10} /> {formatarDuracao(folha.tempoGastoMin)}
-          </span>
-        )}
-        {carryOver && (
-          <span className="inline-flex items-center gap-1 text-[11px] font-medium text-red-600">
-            <AlertTriangle size={10} /> atrasada
-          </span>
-        )}
-      </div>
+      {temMeta && (
+        <div className="mt-1 flex flex-wrap items-center gap-1.5">
+          {mostrarPrioridade && (
+            <span className={`rounded-full px-2 py-0.5 text-[10px] font-medium ${PRIORIDADE_COR[folha.prioridade]}`}>
+              {PRIORIDADE_LABEL[folha.prioridade]}
+            </span>
+          )}
+          {folha.dataInicio && (
+            <span className="inline-flex items-center gap-1 text-[11px] text-indigo-600">
+              <Clock size={10} />
+              {format(new Date(folha.dataInicio), "HH:mm")}
+              {folha.duracaoMin ? ` · ${formatarDuracao(folha.duracaoMin)}` : ""}
+            </span>
+          )}
+          {temTempoReal && (
+            <span className="inline-flex items-center gap-1 text-[11px] text-emerald-600" title="Tempo real registrado">
+              <Timer size={10} /> {formatarDuracao(folha.tempoGastoMin!)}
+            </span>
+          )}
+          {carryOver && (
+            <span className="inline-flex items-center gap-1 text-[11px] font-medium text-red-600">
+              <AlertTriangle size={10} /> atrasada
+            </span>
+          )}
+        </div>
+      )}
     </div>
   );
 }
