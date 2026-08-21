@@ -17,6 +17,7 @@ import { TabelaTarefas } from "@/components/views/TabelaTarefas";
 import { CalendarioTarefas } from "@/components/views/CalendarioTarefas";
 import { PlanejadorDia } from "@/components/views/PlanejadorDia";
 import { PainelMetricas } from "@/components/views/PainelMetricas";
+import { StatusReport } from "@/components/views/StatusReport";
 import { useAgenda } from "@/lib/useAgenda";
 import { workspacesApi, type NovaTarefa, type MembroDTO } from "@/lib/api";
 import { type Nivel, type Tipo, type TarefaDTO } from "@/lib/tarefas";
@@ -86,6 +87,7 @@ export default function Home() {
   // Ao trocar de visão, recarrega a(s) fonte(s) da visão aberta se estiverem sujas.
   // "kanban" hospeda Geral (tarefas) e Dia/Semana (folhas), então verifica ambas.
   useEffect(() => {
+    if (visao === "status") return; // view independente (localStorage), não usa tarefas/agenda
     if (visao === "kanban") {
       if (agendaSuja.current) { agendaSuja.current = false; carregarAgenda(); }
       if (tarefasSuja.current) { tarefasSuja.current = false; recarregar(); }
@@ -104,7 +106,7 @@ export default function Home() {
   // "Carregando…", pois carregar/recarregar não ligam o loading).
   useEffect(() => {
     function sincronizar() {
-      if (document.visibilityState !== "visible") return;
+      if (document.visibilityState !== "visible" || visao === "status") return;
       if (visao === "kanban") { recarregar(); carregarAgenda(); }
       else if (FOLHAS.has(visao)) carregarAgenda();
       else recarregar();
@@ -184,7 +186,9 @@ export default function Home() {
               {erro}
             </p>
           )}
-          {visao === "kanban" ? (
+          {visao === "status" ? (
+            <StatusReport />
+          ) : visao === "kanban" ? (
             <PlanejadorDia
               folhas={folhas}
               reunioes={reunioes}
