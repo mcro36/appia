@@ -1,6 +1,7 @@
 import { NextResponse } from "next/server";
 import { prisma } from "@/lib/prisma";
-import { lerContexto } from "@/lib/contexto";
+import { lerContexto, podeAdministrar } from "@/lib/contexto";
+import { rootsVisiveis, filtroVisibilidade } from "@/lib/visibilidade";
 import { includeTarefaDetalhe, flattenFolhas } from "@/lib/mapTarefa";
 
 // GET /api/agenda — folhas agendáveis + reuniões (compromissos fixos) + config.
@@ -10,13 +11,14 @@ export async function GET() {
   const ctx = await lerContexto();
   if (!ctx) return NextResponse.json({ erro: "Não autenticado." }, { status: 401 });
 
+  const vis = await rootsVisiveis(ctx);
   const raizes = await prisma.tarefa.findMany({
-    where: { tarefaPaiId: null, workspaceId: ctx.workspaceId },
+    where: { tarefaPaiId: null, workspaceId: ctx.workspaceId, ...filtroVisibilidade(vis) },
     include: includeTarefaDetalhe,
     orderBy: { criadaEm: "asc" },
   });
   const reunioes = await prisma.reuniao.findMany({
-    where: { dataHora: { not: null }, tarefa: { workspaceId: ctx.workspaceId } },
+    where: { dataHora: { not: null }, tarefa: { workspaceId: ctx.workspaceId, ...filtroVisibilidade(vis) } },
     select: { id: true, titulo: true, dataHora: true, duracaoMin: true },
   });
   const config = await prisma.configuracao.upsert({
@@ -26,7 +28,7 @@ export async function GET() {
   });
 
   return NextResponse.json({
-    folhas: flattenFolhas(raizes),
+    folhas: flattenFolhas(raizes, { usuarioId: ctx.usuarioId, admin: podeAdministrar(ctx.papel) }),
     reunioes,
     config: {
       expedienteInicioMin: config.expedienteInicioMin,

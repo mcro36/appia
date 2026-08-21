@@ -1,23 +1,26 @@
 import { NextResponse } from "next/server";
 import { Prisma } from "@prisma/client";
 import { prisma } from "@/lib/prisma";
-import { lerContexto, podeEscrever } from "@/lib/contexto";
-import { tarefaDaWorkspace } from "@/lib/escopo";
+import { lerContexto, podeEscrever, podeAdministrar } from "@/lib/contexto";
+import { tarefaVisivel, tarefaEditavel } from "@/lib/visibilidade";
 import { registrarAtividade } from "@/lib/atividade";
+import { recalcularAncestrais, recalcularNo } from "@/lib/rollup";
 import { isPrioridade, isNivel, isRecorrencia, isStatus, isTipo } from "@/lib/tarefas";
 import { includeTarefaDetalhe as include, mapTarefa } from "@/lib/mapTarefa";
 import { dadosAoConcluir } from "@/lib/recorrencia";
 
 type Ctx = { params: Promise<{ id: string }> };
 
-// GET /api/tarefas/:id
+// GET /api/tarefas/:id — visível se o usuário participa do projeto (ou dono/admin).
 export async function GET(_req: Request, { params }: Ctx) {
   const ctx = await lerContexto();
   if (!ctx) return NextResponse.json({ erro: "Não autenticado." }, { status: 401 });
   const { id } = await params;
+  if (!(await tarefaVisivel(id, ctx)))
+    return NextResponse.json({ erro: "Não encontrado." }, { status: 404 });
   const tarefa = await prisma.tarefa.findFirst({ where: { id, workspaceId: ctx.workspaceId }, include });
   if (!tarefa) return NextResponse.json({ erro: "Não encontrado." }, { status: 404 });
-  return NextResponse.json(mapTarefa(tarefa));
+  return NextResponse.json(mapTarefa(tarefa, { usuarioId: ctx.usuarioId, admin: podeAdministrar(ctx.papel) }));
 }
 
 // PATCH /api/tarefas/:id
@@ -26,8 +29,8 @@ export async function PATCH(req: Request, { params }: Ctx) {
   if (!ctx) return NextResponse.json({ erro: "Não autenticado." }, { status: 401 });
   if (!podeEscrever(ctx.papel)) return NextResponse.json({ erro: "Somente leitura neste espaço." }, { status: 403 });
   const { id } = await params;
-  if (!(await tarefaDaWorkspace(id, ctx.workspaceId)))
-    return NextResponse.json({ erro: "Não encontrado." }, { status: 404 });
+  if (!(await tarefaEditavel(id, ctx)))
+    return NextResponse.json({ erro: "Só o responsável ou o criador podem alterar este item." }, { status: 403 });
 
   const body = await req.json().catch(() => null);
   if (!body || typeof body !== "object")
@@ -106,12 +109,14 @@ export async function PATCH(req: Request, { params }: Ctx) {
 
   try {
     const tarefa = await prisma.tarefa.update({ where: { id }, data, include });
+    // Roll-up do status do pai (efeito de sistema, fora do guard de edição).
+    if (body.status !== undefined) await recalcularAncestrais(id).catch(() => {});
     // Timeline: registra mudança de status e de responsável (best-effort).
     if (body.status !== undefined)
       await registrarAtividade(ctx.workspaceId, ctx.usuarioId, "status", id, tarefa.status).catch(() => {});
     if (body.assigneeId !== undefined)
       await registrarAtividade(ctx.workspaceId, ctx.usuarioId, "responsavel", id, tarefa.assignee?.nome ?? null).catch(() => {});
-    return NextResponse.json(mapTarefa(tarefa));
+    return NextResponse.json(mapTarefa(tarefa, { usuarioId: ctx.usuarioId, admin: podeAdministrar(ctx.papel) }));
   } catch (e) {
     if (e instanceof Prisma.PrismaClientKnownRequestError && e.code === "P2025")
       return NextResponse.json({ erro: "Não encontrado." }, { status: 404 });
@@ -125,10 +130,13 @@ export async function DELETE(_req: Request, { params }: Ctx) {
   if (!ctx) return NextResponse.json({ erro: "Não autenticado." }, { status: 401 });
   if (!podeEscrever(ctx.papel)) return NextResponse.json({ erro: "Somente leitura neste espaço." }, { status: 403 });
   const { id } = await params;
-  if (!(await tarefaDaWorkspace(id, ctx.workspaceId)))
-    return NextResponse.json({ erro: "Não encontrado." }, { status: 404 });
+  if (!(await tarefaEditavel(id, ctx)))
+    return NextResponse.json({ erro: "Só o responsável ou o criador podem alterar este item." }, { status: 403 });
   try {
+    // Captura o pai antes de excluir para recalcular o status derivado dele.
+    const alvo = await prisma.tarefa.findUnique({ where: { id }, select: { tarefaPaiId: true } });
     await prisma.tarefa.delete({ where: { id } });
+    if (alvo?.tarefaPaiId) await recalcularNo(alvo.tarefaPaiId).catch(() => {});
     return new NextResponse(null, { status: 204 });
   } catch (e) {
     if (e instanceof Prisma.PrismaClientKnownRequestError && e.code === "P2025")

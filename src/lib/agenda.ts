@@ -15,6 +15,7 @@ export type FolhaDTO = {
   tempoGastoMin: number | null;
   concluidaEm: string | null;
   assignee: { id: string; nome: string } | null;
+  editavel: boolean;
   // Projeto/atividade raiz a que a folha pertence (para agrupar no backlog).
   projeto: { id: string; titulo: string; tipo: Tipo; nivel: Nivel };
 };

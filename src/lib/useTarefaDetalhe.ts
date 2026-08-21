@@ -112,8 +112,7 @@ export function useTarefaDetalhe(
       const pai = paiDeNeto(node.id);
       if (!pai) return;
       const netos = pai.tarefas.map((n) => (n.id === node.id ? { ...n, status: novoStatus } : n));
-      const statusPai = statusDerivado(netos);
-      if (statusPai !== pai.status) await tarefasApi.atualizar(pai.id, { status: statusPai });
+      const statusPai = statusDerivado(netos); // otimista; o servidor recalcula o pai
       setTarefa((t) => ({ ...t, tarefas: t.tarefas.map((f) => (f.id === pai.id ? { ...f, status: statusPai, tarefas: netos } : f)) }));
     }
     onTarefasMudaram();
@@ -146,8 +145,7 @@ export function useTarefaDetalhe(
       const pai = paiDeNeto(node.id);
       if (pai) {
         const netos = pai.tarefas.filter((n) => n.id !== node.id);
-        const statusPai = netos.length ? statusDerivado(netos) : pai.status;
-        if (statusPai !== pai.status) await tarefasApi.atualizar(pai.id, { status: statusPai });
+        const statusPai = netos.length ? statusDerivado(netos) : pai.status; // servidor recalcula
         setTarefa((t) => ({ ...t, tarefas: t.tarefas.map((f) => (f.id === pai.id ? { ...f, status: statusPai, tarefas: netos } : f)) }));
       }
     }
@@ -159,8 +157,7 @@ export function useTarefaDetalhe(
     const pai = tarefa.tarefas.find((f) => f.id === paiId);
     if (!pai) return;
     const netos = [...pai.tarefas, novo];
-    const statusPai = statusDerivado(netos);
-    if (statusPai !== pai.status) await tarefasApi.atualizar(paiId, { status: statusPai });
+    const statusPai = statusDerivado(netos); // servidor recalcula o pai
     setTarefa((t) => ({ ...t, tarefas: t.tarefas.map((f) => (f.id === paiId ? { ...f, status: statusPai, tarefas: netos } : f)) }));
     onTarefasMudaram();
   }

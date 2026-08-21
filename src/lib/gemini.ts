@@ -5,7 +5,8 @@ import {
   type Content,
 } from "@google/generative-ai";
 import { prisma } from "@/lib/prisma";
-import { tarefaDaWorkspace } from "@/lib/escopo";
+import { tarefaVisivel, tarefaEditavel, rootsVisiveis, filtroVisibilidade } from "@/lib/visibilidade";
+import { recalcularAncestrais } from "@/lib/rollup";
 import { PRIORIDADES, RECORRENCIAS, STATUS, TIPOS } from "@/lib/tarefas";
 import { includeTarefaDetalhe, flattenFolhas } from "@/lib/mapTarefa";
 import { ocupadosDoDia, proximaVaga, mesmoDia, type ConfigDTO, type ReuniaoSlim } from "@/lib/agenda";
@@ -165,8 +166,9 @@ async function executar(nome: string, args: Args, ctx: Ctx): Promise<unknown> {
   switch (nome) {
     case "listar_tarefas": {
       const status = str(args.status);
+      const vis = await rootsVisiveis(ctx);
       const tarefas = await prisma.tarefa.findMany({
-        where: { workspaceId: ctx.workspaceId, ...(status ? { status } : {}) },
+        where: { workspaceId: ctx.workspaceId, ...filtroVisibilidade(vis), ...(status ? { status } : {}) },
         orderBy: [{ prazo: "asc" }, { criadaEm: "desc" }],
       });
       return tarefas.map((t) => ({
@@ -192,17 +194,20 @@ async function executar(nome: string, args: Args, ctx: Ctx): Promise<unknown> {
           recorrencia: str(args.recorrencia) ?? "none",
           duracaoMin: typeof args.duracaoMin === "number" ? Math.round(args.duracaoMin) : null,
           workspaceId: ctx.workspaceId,
+          criadoPorId: ctx.usuarioId,
           tags: tagIds.length ? { create: tagIds.map((tagId) => ({ tagId })) } : undefined,
         },
       });
+      await prisma.tarefa.update({ where: { id: t.id }, data: { rootId: t.id } }); // raiz aponta p/ si
       return { ok: true, id: t.id, titulo: t.titulo };
     }
     case "criar_subtarefa": {
       const tarefaPaiId = str(args.tarefaPaiId);
       const titulo = str(args.titulo);
       if (!tarefaPaiId || !titulo) return { erro: "tarefaPaiId e título são obrigatórios." };
-      // Confirma que o pai é da workspace do usuário antes de anexar a filha.
-      if (!(await tarefaDaWorkspace(tarefaPaiId, ctx.workspaceId))) return { erro: "Tarefa pai não encontrada." };
+      // Pode anexar a qualquer projeto VISÍVEL (vira dono do que cria).
+      if (!(await tarefaVisivel(tarefaPaiId, ctx))) return { erro: "Tarefa pai não encontrada." };
+      const pai = await prisma.tarefa.findUnique({ where: { id: tarefaPaiId }, select: { rootId: true } });
       const t = await prisma.tarefa.create({
         data: {
           titulo,
@@ -212,6 +217,8 @@ async function executar(nome: string, args: Args, ctx: Ctx): Promise<unknown> {
           prioridade: str(args.prioridade) ?? "media",
           tarefaPaiId,
           workspaceId: ctx.workspaceId,
+          criadoPorId: ctx.usuarioId,
+          rootId: pai?.rootId ?? tarefaPaiId,
         },
       });
       return { ok: true, id: t.id, titulo: t.titulo };
@@ -219,7 +226,7 @@ async function executar(nome: string, args: Args, ctx: Ctx): Promise<unknown> {
     case "atualizar_tarefa": {
       const id = str(args.id);
       if (!id) return { erro: "id é obrigatório." };
-      if (!(await tarefaDaWorkspace(id, ctx.workspaceId))) return { erro: "Tarefa não encontrada." };
+      if (!(await tarefaEditavel(id, ctx))) return { erro: "Só o responsável ou o criador podem alterar este item." };
       const data: Record<string, unknown> = {};
       if (args.titulo !== undefined) data.titulo = str(args.titulo);
       if (args.descricao !== undefined) data.descricao = str(args.descricao) ?? null;
@@ -243,6 +250,7 @@ async function executar(nome: string, args: Args, ctx: Ctx): Promise<unknown> {
       }
       try {
         const t = await prisma.tarefa.update({ where: { id }, data });
+        if (args.status !== undefined) await recalcularAncestrais(id).catch(() => {});
         return { ok: true, id: t.id, titulo: t.titulo };
       } catch {
         return { erro: "Tarefa não encontrada." };
@@ -251,8 +259,9 @@ async function executar(nome: string, args: Args, ctx: Ctx): Promise<unknown> {
     case "planejar_dia": {
       const dia = new Date();
       // Sequencial: o pooler usa connection_limit=1 (paralelizar dá P2024).
-      const raizes = await prisma.tarefa.findMany({ where: { tarefaPaiId: null, workspaceId: ctx.workspaceId }, include: includeTarefaDetalhe });
-      const reunioesRow = await prisma.reuniao.findMany({ where: { dataHora: { not: null }, tarefa: { workspaceId: ctx.workspaceId } }, select: { id: true, titulo: true, dataHora: true, duracaoMin: true } });
+      const vis = await rootsVisiveis(ctx);
+      const raizes = await prisma.tarefa.findMany({ where: { tarefaPaiId: null, workspaceId: ctx.workspaceId, ...filtroVisibilidade(vis) }, include: includeTarefaDetalhe });
+      const reunioesRow = await prisma.reuniao.findMany({ where: { dataHora: { not: null }, tarefa: { workspaceId: ctx.workspaceId, ...filtroVisibilidade(vis) } }, select: { id: true, titulo: true, dataHora: true, duracaoMin: true } });
       const cfgRow = await prisma.configuracao.upsert({ where: { usuarioId: ctx.usuarioId }, create: { usuarioId: ctx.usuarioId }, update: {} });
       const cfg: ConfigDTO = {
         expedienteInicioMin: cfgRow.expedienteInicioMin,
@@ -270,10 +279,11 @@ async function executar(nome: string, args: Args, ctx: Ctx): Promise<unknown> {
       const blocos = todas
         .filter((f) => f.status === "em_andamento" && mesmoDia(f.dataInicio, dia))
         .map((f) => ({ dataInicio: f.dataInicio as string | null, duracaoMin: f.duracaoMin as number | null }));
-      // pendentes por prioridade (alta→baixa) e prazo (mais cedo primeiro)
+      // "planejar meu dia": só as pendentes que são minhas (atribuídas a mim) ou
+      // sem responsável — nunca reagenda a tarefa de outra pessoa.
       const ordemPri: Record<string, number> = { alta: 0, media: 1, baixa: 2 };
       const pendentes = todas
-        .filter((f) => f.status === "a_fazer")
+        .filter((f) => f.status === "a_fazer" && (f.assignee?.id === ctx.usuarioId || f.assignee == null))
         .sort((a, b) =>
           (Number(b.prazoRigido) - Number(a.prazoRigido)) ||
           (ordemPri[a.prioridade] - ordemPri[b.prioridade]) ||
@@ -294,7 +304,7 @@ async function executar(nome: string, args: Args, ctx: Ctx): Promise<unknown> {
     case "concluir_tarefa": {
       const id = str(args.id);
       if (!id) return { erro: "id é obrigatório." };
-      if (!(await tarefaDaWorkspace(id, ctx.workspaceId))) return { erro: "Tarefa não encontrada." };
+      if (!(await tarefaEditavel(id, ctx))) return { erro: "Só o responsável ou o criador podem alterar este item." };
       try {
         const atual = await prisma.tarefa.findUnique({
           where: { id },
@@ -303,6 +313,7 @@ async function executar(nome: string, args: Args, ctx: Ctx): Promise<unknown> {
         // Hábitos: tarefa recorrente rola para a próxima ocorrência ao concluir.
         const data = atual ? dadosAoConcluir(atual) : { status: "concluido", concluidaEm: new Date() };
         const t = await prisma.tarefa.update({ where: { id }, data });
+        await recalcularAncestrais(id).catch(() => {});
         return { ok: true, id: t.id, titulo: t.titulo };
       } catch {
         return { erro: "Tarefa não encontrada." };
@@ -311,7 +322,7 @@ async function executar(nome: string, args: Args, ctx: Ctx): Promise<unknown> {
     case "remover_tarefa": {
       const id = str(args.id);
       if (!id) return { erro: "id é obrigatório." };
-      if (!(await tarefaDaWorkspace(id, ctx.workspaceId))) return { erro: "Tarefa não encontrada." };
+      if (!(await tarefaEditavel(id, ctx))) return { erro: "Só o responsável ou o criador podem alterar este item." };
       try {
         const t = await prisma.tarefa.delete({ where: { id } });
         return { ok: true, id: t.id, titulo: t.titulo };
@@ -326,9 +337,10 @@ async function executar(nome: string, args: Args, ctx: Ctx): Promise<unknown> {
 
 // ---- Orquestração de um turno de conversa ----------------------------------
 
-async function snapshotTarefas(workspaceId: string): Promise<string> {
+async function snapshotTarefas(ctx: Ctx): Promise<string> {
+  const vis = await rootsVisiveis(ctx);
   const tarefas = await prisma.tarefa.findMany({
-    where: { tarefaPaiId: null, workspaceId },
+    where: { tarefaPaiId: null, workspaceId: ctx.workspaceId, ...filtroVisibilidade(vis) },
     orderBy: [{ status: "asc" }, { prazo: "asc" }],
     take: 100,
     include: { tags: { include: { tag: true } }, tarefas: true },
@@ -405,7 +417,7 @@ export async function processarMensagem(
   historico: Content[] = [],
   ctx: Ctx,
 ): Promise<TurnoResposta> {
-  const snapshot = await snapshotTarefas(ctx.workspaceId);
+  const snapshot = await snapshotTarefas(ctx);
   const model = client().getGenerativeModel({
     model: MODELO,
     systemInstruction: instrucaoSistema(snapshot),

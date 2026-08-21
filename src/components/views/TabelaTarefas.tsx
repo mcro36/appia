@@ -1,7 +1,7 @@
 "use client";
 
 import { useState } from "react";
-import { ChevronDown, ChevronRight, Trash2, GitBranch } from "lucide-react";
+import { ChevronDown, ChevronRight, Trash2, GitBranch, EyeOff } from "lucide-react";
 import { isAtrasada, PRIORIDADES, STATUS, type Prioridade, type Status, type TarefaDTO } from "@/lib/tarefas";
 import {
   NIVEL_COR,
@@ -30,6 +30,7 @@ function LinhaTarefa({
   onAbrir: (t: TarefaDTO) => void;
 }) {
   const atrasada = isAtrasada(t);
+  const ro = !t.editavel; // projeto de outra pessoa: leitura (abre), sem editar
   return (
     <tr className="border-b border-black/5 last:border-0 hover:bg-black/[0.02] dark:border-white/5 dark:hover:bg-white/[0.02]">
       <td className={`${TD} max-w-xs`}>
@@ -68,7 +69,8 @@ function LinhaTarefa({
         <select
           value={t.status}
           onChange={(e) => onAtualizar(t.id, { status: e.target.value as Status })}
-          className={`rounded-full border-0 px-2 py-1 text-xs font-medium outline-none ${STATUS_COR[t.status].pill}`}
+          disabled={ro}
+          className={`rounded-full border-0 px-2 py-1 text-xs font-medium outline-none ${STATUS_COR[t.status].pill} ${ro ? "cursor-default opacity-70" : ""}`}
         >
           {STATUS.map((s) => (
             <option key={s} value={s}>{STATUS_LABEL[s]}</option>
@@ -79,7 +81,8 @@ function LinhaTarefa({
         <select
           value={t.prioridade}
           onChange={(e) => onAtualizar(t.id, { prioridade: e.target.value as Prioridade })}
-          className={`rounded-full border-0 px-2 py-1 text-xs font-medium outline-none ${PRIORIDADE_COR[t.prioridade]}`}
+          disabled={ro}
+          className={`rounded-full border-0 px-2 py-1 text-xs font-medium outline-none ${PRIORIDADE_COR[t.prioridade]} ${ro ? "cursor-default opacity-70" : ""}`}
         >
           {PRIORIDADES.map((p) => (
             <option key={p} value={p}>{PRIORIDADE_LABEL[p]}</option>
@@ -93,19 +96,26 @@ function LinhaTarefa({
           onChange={(e) =>
             onAtualizar(t.id, { prazo: e.target.value ? new Date(e.target.value).toISOString() : null })
           }
+          disabled={ro}
           className={`rounded-md border border-black/10 bg-transparent px-2 py-1 text-xs outline-none focus:border-indigo-500 dark:border-white/15 ${
             atrasada ? "text-red-600" : "text-zinc-600 dark:text-zinc-300"
-          }`}
+          } ${ro ? "cursor-default opacity-70" : ""}`}
         />
       </td>
       <td className={`${TD} text-right`}>
-        <button
-          onClick={() => onRemover(t.id)}
-          aria-label="Remover"
-          className="rounded-md p-1.5 text-zinc-300 transition-colors hover:bg-red-50 hover:text-red-600 dark:hover:bg-red-900/30"
-        >
-          <Trash2 size={15} />
-        </button>
+        {ro ? (
+          <EyeOff size={15} className="ml-auto text-zinc-300" aria-label="Somente leitura">
+            <title>Compartilhado com você — só o responsável altera</title>
+          </EyeOff>
+        ) : (
+          <button
+            onClick={() => onRemover(t.id)}
+            aria-label="Remover"
+            className="rounded-md p-1.5 text-zinc-300 transition-colors hover:bg-red-50 hover:text-red-600 dark:hover:bg-red-900/30"
+          >
+            <Trash2 size={15} />
+          </button>
+        )}
       </td>
     </tr>
   );

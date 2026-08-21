@@ -31,6 +31,7 @@ model Usuario {
   pushes            PushSubscription[]
   config            Configuracao?
   tarefasAtribuidas Tarefa[]          @relation("Assignee")
+  tarefasCriadas    Tarefa[]          @relation("Criador")
   atividades        Atividade[]
 }
 
@@ -141,7 +142,15 @@ model Tarefa {
   assigneeId     String?
   assignee       Usuario?        @relation("Assignee", fields: [assigneeId], references: [id], onDelete: SetNull)
   atividades     Atividade[]
+  // Visibilidade por atribuição: rootId = projeto-raiz ancestral (self, se já é raiz);
+  // torna a consulta de visibilidade plana/indexável. criadoPorId = autor do item.
+  rootId         String?
+  criadoPorId    String?
+  criadoPor      Usuario?        @relation("Criador", fields: [criadoPorId], references: [id], onDelete: SetNull)
   @@index([workspaceId])
+  @@index([rootId])
+  @@index([assigneeId])
+  @@index([criadoPorId])
 }
 
 model TarefaDep {

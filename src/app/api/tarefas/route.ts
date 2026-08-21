@@ -1,21 +1,25 @@
 import { NextResponse } from "next/server";
 import { prisma } from "@/lib/prisma";
-import { lerContexto, podeEscrever } from "@/lib/contexto";
+import { lerContexto, podeEscrever, podeAdministrar } from "@/lib/contexto";
+import { rootsVisiveis, filtroVisibilidade } from "@/lib/visibilidade";
 import { registrarAtividade } from "@/lib/atividade";
 import { isPrioridade, isNivel, isRecorrencia, isStatus, isTipo } from "@/lib/tarefas";
 import { includeTarefa as include, mapTarefa } from "@/lib/mapTarefa";
 
-// GET /api/tarefas — lista apenas raízes (atividades e projetos) da workspace
+// GET /api/tarefas — raízes visíveis ao usuário (dono/admin: todas; membro: só as
+// que ele participa por atribuição/criação). Raiz tem rootId = próprio id.
 export async function GET() {
   const ctx = await lerContexto();
   if (!ctx) return NextResponse.json({ erro: "Não autenticado." }, { status: 401 });
 
+  const vis = await rootsVisiveis(ctx);
   const tarefas = await prisma.tarefa.findMany({
-    where: { tarefaPaiId: null, workspaceId: ctx.workspaceId },
+    where: { tarefaPaiId: null, workspaceId: ctx.workspaceId, ...filtroVisibilidade(vis) },
     orderBy: [{ prazo: "asc" }, { criadaEm: "desc" }],
     include,
   });
-  return NextResponse.json(tarefas.map(mapTarefa));
+  const perm = { usuarioId: ctx.usuarioId, admin: podeAdministrar(ctx.papel) };
+  return NextResponse.json(tarefas.map((t) => mapTarefa(t, perm)));
 }
 
 // POST /api/tarefas
@@ -40,6 +44,14 @@ export async function POST(req: Request) {
 
   const tagIds: string[] = Array.isArray(body.tagIds) ? body.tagIds : [];
 
+  // rootId: se tiver pai, herda a raiz do pai; senão a própria raiz (setada após criar).
+  const paiId = typeof body.tarefaPaiId === "string" ? body.tarefaPaiId : null;
+  let rootId: string | null = null;
+  if (paiId) {
+    const pai = await prisma.tarefa.findUnique({ where: { id: paiId }, select: { rootId: true } });
+    rootId = pai?.rootId ?? paiId;
+  }
+
   const tarefa = await prisma.tarefa.create({
     data: {
       tipo: body.tipo ?? "atividade",
@@ -51,13 +63,17 @@ export async function POST(req: Request) {
       status: body.status ?? "a_fazer",
       recorrencia: body.recorrencia ?? "none",
       recorrenciaAte: body.recorrenciaAte ? new Date(body.recorrenciaAte) : null,
-      tarefaPaiId: typeof body.tarefaPaiId === "string" ? body.tarefaPaiId : null,
+      tarefaPaiId: paiId,
       workspaceId: ctx.workspaceId,
+      criadoPorId: ctx.usuarioId,
+      rootId,
       tags: tagIds.length ? { create: tagIds.map((tagId) => ({ tagId })) } : undefined,
     },
     include,
   });
+  // Raiz: aponta rootId para si mesma (id só existe após criar).
+  if (!rootId) await prisma.tarefa.update({ where: { id: tarefa.id }, data: { rootId: tarefa.id } });
 
   await registrarAtividade(ctx.workspaceId, ctx.usuarioId, "criou", tarefa.id, null).catch(() => {});
-  return NextResponse.json(mapTarefa(tarefa), { status: 201 });
+  return NextResponse.json(mapTarefa(tarefa, { usuarioId: ctx.usuarioId, admin: podeAdministrar(ctx.papel) }), { status: 201 });
 }

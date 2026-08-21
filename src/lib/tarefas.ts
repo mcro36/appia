@@ -30,6 +30,7 @@ export type TarefaFilhaDTO = {
   prazo: string | null;
   dataInicio: string | null;
   duracaoMin: number | null;
+  editavel: boolean;
   tarefas: TarefaFilhaDTO[];
 };
 
@@ -53,6 +54,8 @@ export type TarefaDTO = {
   tarefaPaiId: string | null;
   assigneeId: string | null;
   assignee: { id: string; nome: string } | null;
+  criadoPorId: string | null;
+  editavel: boolean;
   tags: TagDTO[];
   tarefas: TarefaFilhaDTO[];
 };

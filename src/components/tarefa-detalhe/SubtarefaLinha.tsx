@@ -3,7 +3,7 @@
 import { useEffect, useRef, useState } from "react";
 import {
   CheckSquare, Square, Plus, Pencil, Trash2, Check,
-  Calendar, Clock, ChevronRight, ChevronDown, CalendarClock,
+  Calendar, Clock, ChevronRight, ChevronDown, CalendarClock, EyeOff,
 } from "lucide-react";
 import { format } from "date-fns";
 import { ptBR } from "date-fns/locale";
@@ -23,6 +23,7 @@ export type SubtarefaLinhaProps = {
 export function SubtarefaLinha({ sub, onToggle, onRenomear, onExcluir, onSalvarAgenda, onAdicionarFilha }: SubtarefaLinhaProps) {
   const temFilhas = sub.tarefas.length > 0;
   const concluida = sub.status === "concluido";
+  const ro = !sub.editavel; // visível mas de outra pessoa: somente-leitura
   const temAgenda = !!(sub.dataInicio || sub.duracaoMin);
   const concluidasFilhas = sub.tarefas.filter((n) => n.status === "concluido").length;
 
@@ -88,9 +89,10 @@ export function SubtarefaLinha({ sub, onToggle, onRenomear, onExcluir, onSalvarA
         ) : (
           <button
             onMouseDown={(e) => e.preventDefault()}
-            onClick={() => onToggle(sub)}
+            onClick={ro ? undefined : () => onToggle(sub)}
+            disabled={ro}
             aria-label="Concluir"
-            className="shrink-0 text-zinc-400 hover:text-indigo-600"
+            className={`shrink-0 ${ro ? "cursor-default text-zinc-300" : "text-zinc-400 hover:text-indigo-600"}`}
           >
             {concluida ? <CheckSquare size={16} className="text-emerald-600" /> : <Square size={16} />}
           </button>
@@ -170,6 +172,10 @@ export function SubtarefaLinha({ sub, onToggle, onRenomear, onExcluir, onSalvarA
               <Check size={15} />
             </button>
           </>
+        ) : ro ? (
+          <EyeOff size={13} className="shrink-0 text-zinc-300" aria-label="Somente leitura">
+            <title>Só o responsável pode alterar</title>
+          </EyeOff>
         ) : (
           <>
             {onAdicionarFilha && (

@@ -3,7 +3,7 @@
 import { useState } from "react";
 import { format } from "date-fns";
 import { ptBR } from "date-fns/locale";
-import { ChevronDown, Clock, AlertTriangle, X, GitBranch } from "lucide-react";
+import { ChevronDown, Clock, AlertTriangle, X, GitBranch, EyeOff } from "lucide-react";
 import { useIsPWA } from "@/lib/useIsPWA";
 import { isAtrasada, STATUS, type Status, type TarefaDTO } from "@/lib/tarefas";
 import {
@@ -36,13 +36,15 @@ function Card({
 }) {
   const atrasada = isAtrasada(tarefa);
   const subConcluidas = tarefa.tarefas.filter((s) => s.status === "concluido").length;
+  // Projeto visível mas de outra pessoa: abre (leitura), mas não arrasta/remove.
+  const ro = !tarefa.editavel;
 
   return (
     <div
-      draggable
-      onDragStart={() => onDragStart(tarefa.id)}
+      draggable={!ro}
+      onDragStart={ro ? undefined : () => onDragStart(tarefa.id)}
       onClick={() => onAbrir(tarefa)}
-      className={`group cursor-pointer rounded-lg border border-black/10 bg-white p-3 shadow-sm transition-shadow hover:shadow-md active:cursor-grabbing dark:border-white/10 dark:bg-zinc-900 border-l-2 ${TIPO_COR[tarefa.tipo].borda}`}
+      className={`group cursor-pointer rounded-lg border border-black/10 bg-white p-3 shadow-sm transition-shadow hover:shadow-md dark:border-white/10 dark:bg-zinc-900 border-l-2 ${TIPO_COR[tarefa.tipo].borda} ${ro ? "opacity-70" : "active:cursor-grabbing"}`}
     >
       <div className="flex items-start justify-between gap-2">
         <div className="flex-1 min-w-0">
@@ -56,13 +58,19 @@ function Card({
           </div>
           <p className="text-sm font-medium leading-snug">{tarefa.titulo}</p>
         </div>
-        <button
-          onClick={(e) => { e.stopPropagation(); onRemover(tarefa.id); }}
-          aria-label="Remover"
-          className="shrink-0 text-zinc-300 opacity-0 transition-opacity hover:text-red-500 group-hover:opacity-100"
-        >
-          <X size={15} />
-        </button>
+        {ro ? (
+          <EyeOff size={14} className="shrink-0 text-zinc-300" aria-label="Somente leitura">
+            <title>Compartilhado com você — só o responsável altera</title>
+          </EyeOff>
+        ) : (
+          <button
+            onClick={(e) => { e.stopPropagation(); onRemover(tarefa.id); }}
+            aria-label="Remover"
+            className="shrink-0 text-zinc-300 opacity-0 transition-opacity hover:text-red-500 group-hover:opacity-100"
+          >
+            <X size={15} />
+          </button>
+        )}
       </div>
 
       {tarefa.tags.length > 0 && (

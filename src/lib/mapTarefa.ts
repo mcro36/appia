@@ -4,6 +4,15 @@
 
 const selAssignee = { select: { id: true, nome: true } } as const;
 
+// Contexto de permissão para calcular `editavel` por item (responsável, criador
+// ou dono/admin). Sem contexto (ex.: server jobs), tudo é editável.
+export type PermCtx = { usuarioId: string; admin: boolean };
+// eslint-disable-next-line @typescript-eslint/no-explicit-any
+function podeEditar(node: any, perm?: PermCtx): boolean {
+  if (!perm) return true;
+  return perm.admin || node.assigneeId === perm.usuarioId || node.criadoPorId === perm.usuarioId;
+}
+
 // Include raso: lista de raízes (Kanban/Tabela) — só 1 nível de filhas.
 export const includeTarefa = {
   tags: { include: { tag: true } },
@@ -22,7 +31,7 @@ export const includeTarefaDetalhe = {
 // Achata a árvore (raízes → filhas → netas) em folhas agendáveis (nós sem
 // filhos), carregando o projeto/atividade raiz para o planejador diário.
 // eslint-disable-next-line @typescript-eslint/no-explicit-any
-export function flattenFolhas(raizes: any[]) {
+export function flattenFolhas(raizes: any[], perm?: PermCtx) {
   // eslint-disable-next-line @typescript-eslint/no-explicit-any
   const out: any[] = [];
   // eslint-disable-next-line @typescript-eslint/no-explicit-any
@@ -41,6 +50,7 @@ export function flattenFolhas(raizes: any[]) {
         tempoGastoMin: node.tempoGastoMin ?? null,
         concluidaEm: node.concluidaEm ?? null,
         assignee: node.assignee ? { id: node.assignee.id, nome: node.assignee.nome } : null,
+        editavel: podeEditar(node, perm),
         projeto: { id: raiz.id, titulo: raiz.titulo, tipo: raiz.tipo, nivel: raiz.nivel },
       });
     } else {
@@ -52,7 +62,7 @@ export function flattenFolhas(raizes: any[]) {
 }
 
 // eslint-disable-next-line @typescript-eslint/no-explicit-any
-function mapFilha(s: any) {
+function mapFilha(s: any, perm?: PermCtx) {
   return {
     id: s.id,
     titulo: s.titulo,
@@ -61,8 +71,9 @@ function mapFilha(s: any) {
     prazo: s.prazo,
     dataInicio: s.dataInicio,
     duracaoMin: s.duracaoMin,
+    editavel: podeEditar(s, perm),
     // eslint-disable-next-line @typescript-eslint/no-explicit-any
-    tarefas: (s.tarefas ?? []).map((n: any) => mapFilha(n)),
+    tarefas: (s.tarefas ?? []).map((n: any) => mapFilha(n, perm)),
   };
 }
 
@@ -85,7 +96,7 @@ export function mapReuniao(r: any) {
 }
 
 // eslint-disable-next-line @typescript-eslint/no-explicit-any
-export function mapTarefa(t: any) {
+export function mapTarefa(t: any, perm?: PermCtx) {
   return {
     id: t.id,
     tipo: t.tipo,
@@ -105,7 +116,10 @@ export function mapTarefa(t: any) {
     tarefaPaiId: t.tarefaPaiId,
     assigneeId: t.assigneeId ?? null,
     assignee: t.assignee ? { id: t.assignee.id, nome: t.assignee.nome } : null,
+    criadoPorId: t.criadoPorId ?? null,
+    editavel: podeEditar(t, perm),
     tags: (t.tags ?? []).map((tt: any) => ({ id: tt.tag.id, nome: tt.tag.nome, cor: tt.tag.cor })),
-    tarefas: (t.tarefas ?? []).map(mapFilha),
+    // eslint-disable-next-line @typescript-eslint/no-explicit-any
+    tarefas: (t.tarefas ?? []).map((f: any) => mapFilha(f, perm)),
   };
 }

@@ -115,6 +115,42 @@ para checagem otimista; o isolamento real fica na camada de contexto, junto à f
 - [x] **Quase-tempo-real**: refetch silencioso da visão ativa ao focar a aba + a cada 25s
   (só com aba visível), pela API escopada. Evita Supabase Realtime (exigiria RLS). Verificado.
 
+**Backlog de colaboração (futuro)**
+- [ ] **Onboarding por convite**: link de convite leva a cadastro/login que já aceita o
+  convite (sem perder o token); opção de convidar por email existente. Hoje o cadastro
+  cria espaço próprio e o aceite exige login antes — gera confusão de "cadastrei e não entrei no time".
+- [ ] Recuperar senha ("esqueci") e notificar ao atribuir/mencionar — dependem de provedor de email.
+
+## Visibilidade por atribuição — EM ANDAMENTO (Fase 1)
+Substitui o espaço plano (todos veem tudo) por um modelo **assignment-first**: a
+atribuição/criação é que dá acesso. Inspirado em Asana "My Tasks" + permissões por item
+do Jira. Sem RLS — enforced na camada de escopo em app.
+
+**Regra**
+- **Ver** um projeto-raiz R (árvore inteira): se sou dona/admin do espaço de R, **ou** sou
+  responsável/criador de **qualquer item** dentro de R.
+- **Editar/apagar/concluir** um item T: só se `T.assigneeId = eu` **ou** `T.criadoPorId = eu`
+  (ou dono/admin). Os "irmãos" ficam **somente-leitura** (least privilege).
+- Comentar segue a **leitura** (quem vê, comenta). Roll-up de status do pai é **efeito de
+  sistema** (roda no servidor, fora do guard de escrita).
+
+**Dados:** `Tarefa.rootId` (raiz ancestral — visibilidade plana e indexável, sem CTE
+recursiva no free tier) e `Tarefa.criadoPorId` (autor). Índices em rootId/assigneeId/criadoPorId.
+
+**Código:** módulo único `src/lib/visibilidade.ts` — `rootsVisiveis(ctx)`,
+`tarefaVisivel(id,ctx)` (leitura), `tarefaEditavel(id,ctx)` (escrita). Todas as rotas de
+leitura/escrita + IA (gemini) + métricas/workload derivam desse predicado.
+
+**UI:** telas atuais mostram menos projetos (sem poda de árvore); itens visíveis-não-editáveis
+em modo somente-leitura (sem status/lixeira/drag) + cadeadinho; selo "de X" e avatares no
+card do projeto; empty states.
+
+**Fase 2 (futuro):** home agregada cross-workspace ("Atribuídos a mim") + atribuir a qualquer
+usuário — o mesmo predicado já é cross-workspace.
+
+**Migração:** `rootId`/`criadoPorId` nullable + backfill; schema e código sobem **juntos**
+para o `master` (lição do deploy anterior).
+
 ## Design / experiência (premissa)
 A aplicação se inspira em **Monday, Jira e ferramentas similares** de gestão de trabalho:
 - Sidebar de navegação à esquerda + barra de ferramentas no topo

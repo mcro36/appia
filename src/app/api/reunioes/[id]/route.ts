@@ -1,7 +1,7 @@
 import { NextResponse } from "next/server";
 import { prisma } from "@/lib/prisma";
 import { lerContexto, podeEscrever } from "@/lib/contexto";
-import { reuniaoDaWorkspace } from "@/lib/escopo";
+import { reuniaoVisivel } from "@/lib/visibilidade";
 import { includeReuniao, mapReuniao } from "@/lib/mapTarefa";
 
 type Ctx = { params: Promise<{ id: string }> };
@@ -12,7 +12,7 @@ export async function PATCH(req: Request, { params }: Ctx) {
   if (!ctx) return NextResponse.json({ erro: "Não autenticado." }, { status: 401 });
   if (!podeEscrever(ctx.papel)) return NextResponse.json({ erro: "Somente leitura neste espaço." }, { status: 403 });
   const { id } = await params;
-  if (!(await reuniaoDaWorkspace(id, ctx.workspaceId)))
+  if (!(await reuniaoVisivel(id, ctx)))
     return NextResponse.json({ erro: "Não encontrado." }, { status: 404 });
   const body = await req.json().catch(() => null);
   if (!body) return NextResponse.json({ erro: "Corpo inválido." }, { status: 400 });
@@ -36,7 +36,7 @@ export async function DELETE(_req: Request, { params }: Ctx) {
   if (!ctx) return NextResponse.json({ erro: "Não autenticado." }, { status: 401 });
   if (!podeEscrever(ctx.papel)) return NextResponse.json({ erro: "Somente leitura neste espaço." }, { status: 403 });
   const { id } = await params;
-  if (!(await reuniaoDaWorkspace(id, ctx.workspaceId)))
+  if (!(await reuniaoVisivel(id, ctx)))
     return NextResponse.json({ erro: "Não encontrado." }, { status: 404 });
   await prisma.reuniao.delete({ where: { id } });
   return new NextResponse(null, { status: 204 });

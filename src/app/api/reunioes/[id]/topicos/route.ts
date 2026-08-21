@@ -1,7 +1,7 @@
 import { NextResponse } from "next/server";
 import { prisma } from "@/lib/prisma";
 import { lerContexto, podeEscrever } from "@/lib/contexto";
-import { reuniaoDaWorkspace } from "@/lib/escopo";
+import { reuniaoVisivel } from "@/lib/visibilidade";
 
 type Ctx = { params: Promise<{ id: string }> };
 
@@ -11,7 +11,7 @@ export async function POST(req: Request, { params }: Ctx) {
   if (!ctx) return NextResponse.json({ erro: "Não autenticado." }, { status: 401 });
   if (!podeEscrever(ctx.papel)) return NextResponse.json({ erro: "Somente leitura neste espaço." }, { status: 403 });
   const { id: reuniaoId } = await params;
-  if (!(await reuniaoDaWorkspace(reuniaoId, ctx.workspaceId)))
+  if (!(await reuniaoVisivel(reuniaoId, ctx)))
     return NextResponse.json({ erro: "Não encontrado." }, { status: 404 });
   const body = await req.json().catch(() => null);
   if (!body || typeof body.titulo !== "string" || !body.titulo.trim())
