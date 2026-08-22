@@ -39,7 +39,7 @@ export function isCor(v: unknown): v is Cor {
 }
 
 export function itemVazio(): ItemStatus {
-  return { descricao: "", sc: "", corSc: "verde", status: "", corStatus: "nenhum" };
+  return { descricao: "", sc: "", corSc: "nenhum", status: "", corStatus: "nenhum" };
 }
 
 // Valida/normaliza um documento vindo do localStorage ou de import.
