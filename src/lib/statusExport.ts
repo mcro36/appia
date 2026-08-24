@@ -37,16 +37,17 @@ function construirNode(projetos: ProjetoStatus[]): HTMLElement {
       <div style="background:#eef2f8;padding:13px 22px;font-weight:700;font-size:16px;color:#16213e;border-bottom:1px solid #d5dced">${esc(proj.nome)}</div>
       <table style="width:100%;border-collapse:collapse">
         <thead><tr>
-          ${["Descrição do Item", "SC / Contrato", "Status"].map((h) => `<th style="background:#16213e;color:#fff;text-align:left;vertical-align:middle;font-size:14px;font-weight:600;white-space:nowrap;padding:14px 22px">${h}</th>`).join("")}
+          ${["Descrição do Item", "SC / Contrato", "Status", "Próximo passo"].map((h) => `<th style="background:#16213e;color:#fff;text-align:left;vertical-align:middle;font-size:14px;font-weight:600;white-space:nowrap;padding:14px 22px">${h}</th>`).join("")}
         </tr></thead>
         <tbody>
           ${proj.itens.length === 0
-            ? `<tr><td colspan="3" style="padding:16px 22px;border-top:1px solid #e5e7eb;color:#6b7280;font-style:italic">Nenhum item.</td></tr>`
+            ? `<tr><td colspan="4" style="padding:16px 22px;border-top:1px solid #e5e7eb;color:#6b7280;font-style:italic">Nenhum item.</td></tr>`
             : proj.itens.map((it, i) => `
             <tr style="background:${i % 2 ? "#f7f8fa" : "#ffffff"}">
               <td style="padding:15px 22px;border-top:1px solid #e5e7eb;vertical-align:middle;line-height:1;font-size:14px;color:#1f2937;white-space:nowrap"><span style="display:inline-block;line-height:1;transform:translateY(-8px)"><b style="color:#16213e">Item ${i + 1}</b> <span style="color:#6b7280">–</span> ${esc(it.descricao)}</span></td>
               <td style="padding:15px 22px;border-top:1px solid #e5e7eb;vertical-align:middle;line-height:1;white-space:nowrap">${selo(it.sc, it.corSc)}</td>
               <td style="padding:15px 22px;border-top:1px solid #e5e7eb;vertical-align:middle;line-height:1;white-space:nowrap">${selo(it.status, it.corStatus)}</td>
+              <td style="padding:15px 22px;border-top:1px solid #e5e7eb;vertical-align:middle;line-height:1;font-size:14px;color:#1f2937;white-space:nowrap"><span style="display:inline-block;line-height:1;transform:translateY(-8px)">${esc(it.proximoPasso)}</span></td>
             </tr>`).join("")}
         </tbody>
       </table>
@@ -109,10 +110,11 @@ export async function exportarExcel(projetos: ProjetoStatus[]) {
       Descrição: it.descricao,
       "SC / Contrato": it.sc,
       Status: it.status,
+      "Próximo passo": it.proximoPasso,
     })),
   );
   const ws = XLSX.utils.json_to_sheet(linhas);
-  ws["!cols"] = [{ wch: 24 }, { wch: 6 }, { wch: 52 }, { wch: 26 }, { wch: 44 }];
+  ws["!cols"] = [{ wch: 24 }, { wch: 6 }, { wch: 52 }, { wch: 26 }, { wch: 44 }, { wch: 44 }];
   const wb = XLSX.utils.book_new();
   XLSX.utils.book_append_sheet(wb, ws, "Status");
   XLSX.writeFile(wb, "status-projetos.xlsx");

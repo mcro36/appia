@@ -47,7 +47,7 @@ const CSS = `
 .sr .btn-grupo.perigo:hover{border-color:#f3c6c1;color:#c0392b}
 
 .sr .rolagem{overflow-x:auto}
-.sr table{width:100%;min-width:660px;border-collapse:collapse}
+.sr table{width:100%;min-width:840px;border-collapse:collapse}
 .sr tr.cabecalho th{background:var(--navy);color:#fff;text-align:left;font-size:.9rem;font-weight:600;padding:15px 22px;white-space:nowrap}
 .sr tr.cabecalho th:last-child{width:90px}
 .sr tbody td{padding:14px 22px;border-top:1px solid var(--borda);font-size:.9rem;vertical-align:middle;white-space:nowrap}
@@ -58,6 +58,7 @@ const CSS = `
 .sr .num{font-weight:700;color:var(--navy)}
 .sr .desc-sep{color:var(--texto-fraco);margin:0 4px}
 .sr .texto-simples{font-weight:700;color:var(--navy)}
+.sr .proximo-texto{color:var(--texto)}
 .sr .selo{display:inline-block;padding:7px 16px;border-radius:999px;font-size:.82rem;font-weight:600;line-height:1.2;white-space:nowrap}
 .sr .selo.verde{background:var(--verde-bg);color:var(--verde-tx)}
 .sr .selo.amarelo{background:var(--amarelo-bg);color:var(--amarelo-tx)}
@@ -337,6 +338,7 @@ export function StatusReport() {
                     <th>Descrição do Item</th>
                     <th>SC / Contrato</th>
                     <th>Status</th>
+                    <th>Próximo passo</th>
                     <th />
                   </tr>
                 </thead>
@@ -394,6 +396,18 @@ export function StatusReport() {
                           ) : <Celula texto={item.status} cor={item.corStatus} />}
                         </td>
                         <td>
+                          {ed ? (
+                            <input
+                              className="desc-input"
+                              value={item.proximoPasso}
+                              placeholder="Próximo passo"
+                              aria-label="Próximo passo"
+                              onChange={(e) => r.atualizarItem(p, i, { proximoPasso: e.target.value })}
+                              onKeyDown={(e) => { if (e.key === "Enter") setEditando(null); }}
+                            />
+                          ) : (item.proximoPasso ? <span className="proximo-texto">{item.proximoPasso}</span> : null)}
+                        </td>
+                        <td>
                           <div className="ferramentas">
                             <button
                               className={`icone${ed ? " ativo" : ""}`}
@@ -417,7 +431,7 @@ export function StatusReport() {
                     );
                   })}
                   {proj.itens.length === 0 && (
-                    <tr className="vazio"><td colSpan={4}>Nenhum item. Clique em <b>+ Item</b> para adicionar.</td></tr>
+                    <tr className="vazio"><td colSpan={5}>Nenhum item. Clique em <b>+ Item</b> para adicionar.</td></tr>
                   )}
                 </tbody>
               </table>

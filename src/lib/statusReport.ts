@@ -10,6 +10,7 @@ export type ItemStatus = {
   corSc: Cor;
   status: string;
   corStatus: Cor;
+  proximoPasso: string;
 };
 export type ProjetoStatus = { nome: string; itens: ItemStatus[] };
 export type StatusDoc = { titulo: string; projetos: ProjetoStatus[] };
@@ -39,7 +40,7 @@ export function isCor(v: unknown): v is Cor {
 }
 
 export function itemVazio(): ItemStatus {
-  return { descricao: "", sc: "", corSc: "nenhum", status: "", corStatus: "nenhum" };
+  return { descricao: "", sc: "", corSc: "nenhum", status: "", corStatus: "nenhum", proximoPasso: "" };
 }
 
 // Valida/normaliza um documento vindo do localStorage ou de import.
@@ -56,6 +57,7 @@ export function normalizar(bruto: any): StatusDoc {
       corSc: isCor(it?.corSc) ? it.corSc : "verde",
       status: String(it?.status ?? ""),
       corStatus: isCor(it?.corStatus) ? it.corStatus : "nenhum",
+      proximoPasso: String(it?.proximoPasso ?? ""),
     })) : [],
   })) : [];
   return { titulo, projetos };
@@ -63,7 +65,7 @@ export function normalizar(bruto: any): StatusDoc {
 
 // Semente: o conteúdo que já estava salvo (Nova pasta/status-fiemg-moove.json),
 // usado só na primeira vez (quando não há nada no localStorage).
-export const STATUS_SEED: StatusDoc = {
+export const STATUS_SEED: StatusDoc = normalizar({
   titulo: "Status dos Projetos",
   projetos: [
     {
@@ -109,4 +111,4 @@ export const STATUS_SEED: StatusDoc = {
       ],
     },
   ],
-};
+});
