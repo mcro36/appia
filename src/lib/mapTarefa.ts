@@ -72,6 +72,7 @@ function mapFilha(s: any, perm?: PermCtx) {
     dataInicio: s.dataInicio,
     duracaoMin: s.duracaoMin,
     editavel: podeEditar(s, perm),
+    noStatusReport: s.noStatusReport ?? false,
     // eslint-disable-next-line @typescript-eslint/no-explicit-any
     tarefas: (s.tarefas ?? []).map((n: any) => mapFilha(n, perm)),
   };
@@ -118,6 +119,10 @@ export function mapTarefa(t: any, perm?: PermCtx) {
     assignee: t.assignee ? { id: t.assignee.id, nome: t.assignee.nome } : null,
     criadoPorId: t.criadoPorId ?? null,
     editavel: podeEditar(t, perm),
+    noStatusReport: t.noStatusReport ?? false,
+    sc: t.sc ?? null,
+    statusReportNota: t.statusReportNota ?? null,
+    proximoPasso: t.proximoPasso ?? null,
     tags: (t.tags ?? []).map((tt: any) => ({ id: tt.tag.id, nome: tt.tag.nome, cor: tt.tag.cor })),
     // eslint-disable-next-line @typescript-eslint/no-explicit-any
     tarefas: (t.tarefas ?? []).map((f: any) => mapFilha(f, perm)),

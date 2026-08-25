@@ -1,7 +1,7 @@
 "use client";
 
 import { useEffect, useRef, useState } from "react";
-import { X, Plus, Tag, Calendar, GitBranch, ChevronDown, ChevronRight, Users, Lock, UserCircle2 } from "lucide-react";
+import { X, Plus, Tag, Calendar, GitBranch, ChevronDown, ChevronRight, Users, Lock, UserCircle2, Pin } from "lucide-react";
 import { format } from "date-fns";
 import { ptBR } from "date-fns/locale";
 import { NIVEIS, type TarefaDTO, type TagDTO } from "@/lib/tarefas";
@@ -30,7 +30,7 @@ export function TarefaDetalhe({ tarefa: tarefaInicial, tagsDisponiveis, onFechar
     tarefa,
     salvarTitulo, salvarDescricao, mudarStatus, mudarPrioridade, mudarPrazo, mudarPrazoRigido, mudarTipo, mudarNivel,
     mudarResponsavel, adicionarTarefaFilha, alternarConclusao, renomear, excluir, adicionarSubFilha, salvarAgendaTarefa,
-    toggleTag, criarTag,
+    toggleTag, criarTag, mudarNoStatusReport, salvarCampoStatusReport, toggleSubStatusReport,
   } = useTarefaDetalhe(tarefaInicial, onAtualizar, onTarefasMudaram);
 
   const [membros, setMembros] = useState<MembroDTO[]>([]);
@@ -123,6 +123,39 @@ export function TarefaDetalhe({ tarefa: tarefaInicial, tagsDisponiveis, onFechar
                 {NIVEL_LABEL[n]}
               </button>
             ))}
+          </div>
+
+          {/* Status Report — marca a tarefa e, quando marcada, edita os campos do report */}
+          <div className="rounded-lg ring-1 ring-black/10 dark:ring-white/10">
+            <button
+              onClick={() => mudarNoStatusReport(!tarefa.noStatusReport)}
+              className={`flex w-full items-center gap-2 rounded-lg px-3 py-2 text-xs font-medium transition-colors ${
+                tarefa.noStatusReport
+                  ? "bg-indigo-50 text-indigo-700 dark:bg-indigo-950/40 dark:text-indigo-300"
+                  : "text-zinc-500 hover:bg-zinc-50 dark:hover:bg-zinc-800"
+              }`}
+            >
+              <Pin size={13} className={tarefa.noStatusReport ? "fill-current" : ""} />
+              {tarefa.noStatusReport ? "No Status Report" : "Adicionar ao Status Report"}
+            </button>
+            {tarefa.noStatusReport && (
+              <div key={tarefa.id} className="grid grid-cols-2 gap-2 border-t border-black/5 p-3 dark:border-white/10">
+                {([
+                  { campo: "sc", rotulo: "SC / Contrato", full: true },
+                  { campo: "statusReportNota", rotulo: "Nota de status", full: true },
+                  { campo: "proximoPasso", rotulo: "Próximo passo", full: true },
+                ] as const).map(({ campo, rotulo, full }) => (
+                  <label key={campo} className={`text-[11px] font-medium text-zinc-500 ${full ? "col-span-2" : ""}`}>
+                    {rotulo}
+                    <input
+                      defaultValue={tarefa[campo] ?? ""}
+                      onBlur={(e) => salvarCampoStatusReport({ [campo]: e.target.value } as Partial<Record<typeof campo, string>>)}
+                      className="mt-1 w-full rounded-lg px-2.5 py-1.5 text-xs font-normal text-zinc-800 ring-1 ring-black/10 outline-none focus:ring-indigo-400 dark:bg-zinc-800 dark:text-zinc-100 dark:ring-white/10"
+                    />
+                  </label>
+                ))}
+              </div>
+            )}
           </div>
 
           {/* Metadados */}
@@ -250,7 +283,7 @@ export function TarefaDetalhe({ tarefa: tarefaInicial, tagsDisponiveis, onFechar
             {(() => {
               const subAtivas = tarefa.tarefas.filter((s) => s.status !== "concluido");
               const subConcluidas = tarefa.tarefas.filter((s) => s.status === "concluido");
-              const subProps = { onToggle: alternarConclusao, onRenomear: renomear, onExcluir: excluir, onSalvarAgenda: salvarAgendaTarefa, onAdicionarFilha: adicionarSubFilha };
+              const subProps = { onToggle: alternarConclusao, onRenomear: renomear, onExcluir: excluir, onSalvarAgenda: salvarAgendaTarefa, onAdicionarFilha: adicionarSubFilha, onToggleStatusReport: toggleSubStatusReport };
               return (
                 <>
                   <ul className="space-y-1.5">

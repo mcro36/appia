@@ -1,7 +1,7 @@
 "use client";
 
 import { useState } from "react";
-import { ChevronDown, ChevronRight, Trash2, GitBranch, EyeOff } from "lucide-react";
+import { ChevronDown, ChevronRight, Trash2, GitBranch, EyeOff, Pin } from "lucide-react";
 import { isAtrasada, PRIORIDADES, STATUS, type Prioridade, type Status, type TarefaDTO } from "@/lib/tarefas";
 import {
   NIVEL_COR,
@@ -108,13 +108,27 @@ function LinhaTarefa({
             <title>Compartilhado com você — só o responsável altera</title>
           </EyeOff>
         ) : (
-          <button
-            onClick={() => onRemover(t.id)}
-            aria-label="Remover"
-            className="rounded-md p-1.5 text-zinc-300 transition-colors hover:bg-red-50 hover:text-red-600 dark:hover:bg-red-900/30"
-          >
-            <Trash2 size={15} />
-          </button>
+          <div className="flex items-center justify-end gap-1">
+            <button
+              onClick={() => onAtualizar(t.id, { noStatusReport: !t.noStatusReport })}
+              aria-label={t.noStatusReport ? "Remover do Status Report" : "Adicionar ao Status Report"}
+              title={t.noStatusReport ? "No Status Report" : "Adicionar ao Status Report"}
+              className={`rounded-md p-1.5 transition-colors ${
+                t.noStatusReport
+                  ? "text-indigo-500 hover:bg-indigo-50 dark:hover:bg-indigo-950/40"
+                  : "text-zinc-300 hover:bg-indigo-50 hover:text-indigo-500 dark:hover:bg-indigo-950/40"
+              }`}
+            >
+              <Pin size={15} className={t.noStatusReport ? "fill-current" : ""} />
+            </button>
+            <button
+              onClick={() => onRemover(t.id)}
+              aria-label="Remover"
+              className="rounded-md p-1.5 text-zinc-300 transition-colors hover:bg-red-50 hover:text-red-600 dark:hover:bg-red-900/30"
+            >
+              <Trash2 size={15} />
+            </button>
+          </div>
         )}
       </td>
     </tr>

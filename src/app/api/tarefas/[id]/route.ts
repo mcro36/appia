@@ -82,6 +82,15 @@ export async function PATCH(req: Request, { params }: Ctx) {
     data.duracaoMin = typeof body.duracaoMin === "number" ? Math.round(body.duracaoMin) : null;
   if (body.tempoGastoMin !== undefined)
     data.tempoGastoMin = typeof body.tempoGastoMin === "number" ? Math.round(body.tempoGastoMin) : null;
+  // Status Report (Fase 1)
+  if (body.noStatusReport !== undefined)
+    data.noStatusReport = Boolean(body.noStatusReport);
+  if (body.sc !== undefined)
+    data.sc = typeof body.sc === "string" ? body.sc.trim() || null : null;
+  if (body.statusReportNota !== undefined)
+    data.statusReportNota = typeof body.statusReportNota === "string" ? body.statusReportNota.trim() || null : null;
+  if (body.proximoPasso !== undefined)
+    data.proximoPasso = typeof body.proximoPasso === "string" ? body.proximoPasso.trim() || null : null;
   if (Array.isArray(body.tagIds))
     data.tags = { deleteMany: {}, create: (body.tagIds as string[]).map((tagId) => ({ tagId })) };
   if (body.assigneeId !== undefined) {

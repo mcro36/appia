@@ -126,6 +126,12 @@ model Tarefa {
   concluidaEm    DateTime?
   criadaEm       DateTime        @default(now())
   atualizadaEm   DateTime        @updatedAt
+  // Status Report (Fase 1): marca a tarefa para aparecer no report; contrato/sc e
+  // notas narrativas ficam na própria tarefa (histórico/rastreabilidade).
+  noStatusReport   Boolean       @default(false)
+  sc               String?
+  statusReportNota String?
+  proximoPasso     String?
   tags           TarefaTag[]
   lembretes      Lembrete[]
   // Tarefas: relação auto-referencial (pai = projeto/atividade, filhos = tarefas)
@@ -151,6 +157,7 @@ model Tarefa {
   @@index([rootId])
   @@index([assigneeId])
   @@index([criadoPorId])
+  @@index([noStatusReport])
 }
 
 model TarefaDep {

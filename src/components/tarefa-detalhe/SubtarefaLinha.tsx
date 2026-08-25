@@ -3,7 +3,7 @@
 import { useEffect, useRef, useState } from "react";
 import {
   CheckSquare, Square, Plus, Pencil, Trash2, Check,
-  Calendar, Clock, ChevronRight, ChevronDown, CalendarClock, EyeOff,
+  Calendar, Clock, ChevronRight, ChevronDown, CalendarClock, EyeOff, Pin,
 } from "lucide-react";
 import { format } from "date-fns";
 import { ptBR } from "date-fns/locale";
@@ -18,9 +18,10 @@ export type SubtarefaLinhaProps = {
   onExcluir: (sub: TarefaFilhaDTO) => void;
   onSalvarAgenda: (sub: TarefaFilhaDTO, dataInicio: string | null, duracaoMin: number | null) => void;
   onAdicionarFilha?: (paiId: string, titulo: string) => void;
+  onToggleStatusReport?: (sub: TarefaFilhaDTO, v: boolean) => void;
 };
 
-export function SubtarefaLinha({ sub, onToggle, onRenomear, onExcluir, onSalvarAgenda, onAdicionarFilha }: SubtarefaLinhaProps) {
+export function SubtarefaLinha({ sub, onToggle, onRenomear, onExcluir, onSalvarAgenda, onAdicionarFilha, onToggleStatusReport }: SubtarefaLinhaProps) {
   const temFilhas = sub.tarefas.length > 0;
   const concluida = sub.status === "concluido";
   const ro = !sub.editavel; // visível mas de outra pessoa: somente-leitura
@@ -198,6 +199,19 @@ export function SubtarefaLinha({ sub, onToggle, onRenomear, onExcluir, onSalvarA
             >
               <CalendarClock size={15} />
             </button>
+            {onToggleStatusReport && (
+              <button
+                onClick={() => onToggleStatusReport(sub, !sub.noStatusReport)}
+                title={sub.noStatusReport ? "No Status Report" : "Adicionar ao Status Report"}
+                className={`shrink-0 rounded p-1 transition-colors ${
+                  sub.noStatusReport
+                    ? "text-indigo-500 hover:bg-indigo-50 dark:hover:bg-indigo-950/40"
+                    : "text-zinc-300 hover:bg-zinc-100 hover:text-indigo-500 dark:hover:bg-zinc-700"
+                }`}
+              >
+                <Pin size={15} className={sub.noStatusReport ? "fill-current" : ""} />
+              </button>
+            )}
             <button
               onClick={() => { setTituloEdit(sub.titulo); setEditando(true); }}
               title="Editar"
@@ -263,7 +277,7 @@ export function SubtarefaLinha({ sub, onToggle, onRenomear, onExcluir, onSalvarA
       {temFilhas && expandido && (() => {
         const netosAtivos = sub.tarefas.filter((n) => n.status !== "concluido");
         const netosConcluidos = sub.tarefas.filter((n) => n.status === "concluido");
-        const netoProps = { onToggle, onRenomear, onExcluir, onSalvarAgenda };
+        const netoProps = { onToggle, onRenomear, onExcluir, onSalvarAgenda, onToggleStatusReport };
         return (
           <>
             {netosAtivos.length > 0 && (

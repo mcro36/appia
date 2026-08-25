@@ -12,7 +12,9 @@ export type ItemStatus = {
   corStatus: Cor;
   proximoPasso: string;
 };
-export type ProjetoStatus = { nome: string; itens: ItemStatus[] };
+// rootId: quando presente, este projeto manual está atrelado a um projeto real
+// (as linhas manuais aparecem na mesma tabela das tarefas marcadas daquela raiz).
+export type ProjetoStatus = { nome: string; itens: ItemStatus[]; rootId?: string };
 export type StatusDoc = { titulo: string; projetos: ProjetoStatus[] };
 
 export const COR_LABEL: Record<Cor, string> = {
@@ -50,6 +52,7 @@ export function normalizar(bruto: any): StatusDoc {
   // eslint-disable-next-line @typescript-eslint/no-explicit-any
   const projetos: ProjetoStatus[] = Array.isArray(bruto?.projetos) ? bruto.projetos.map((p: any) => ({
     nome: typeof p?.nome === "string" ? p.nome : "Projeto",
+    ...(typeof p?.rootId === "string" ? { rootId: p.rootId } : {}),
     // eslint-disable-next-line @typescript-eslint/no-explicit-any
     itens: Array.isArray(p?.itens) ? p.itens.map((it: any) => ({
       descricao: String(it?.descricao ?? ""),

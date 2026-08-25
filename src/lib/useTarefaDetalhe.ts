@@ -68,6 +68,21 @@ export function useTarefaDetalhe(
     onAtualizar(tarefa.id, { prazoRigido });
   }
 
+  async function mudarNoStatusReport(noStatusReport: boolean) {
+    const atualizado = await tarefasApi.atualizar(tarefa.id, { noStatusReport });
+    setTarefa(atualizado);
+    onAtualizar(tarefa.id, { noStatusReport });
+  }
+
+  // Campos do Status Report editáveis também no detalhe da tarefa.
+  async function salvarCampoStatusReport(
+    patch: Partial<Record<"sc" | "statusReportNota" | "proximoPasso", string | null>>,
+  ) {
+    const atualizado = await tarefasApi.atualizar(tarefa.id, patch);
+    setTarefa(atualizado);
+    onAtualizar(tarefa.id, patch);
+  }
+
   async function mudarTipo(tipo: TarefaDTO["tipo"]) {
     const atualizado = await tarefasApi.atualizar(tarefa.id, { tipo });
     setTarefa(atualizado);
@@ -175,6 +190,20 @@ export function useTarefaDetalhe(
     onTarefasMudaram();
   }
 
+  // Marca/desmarca uma subtarefa (filha ou neta) para o Status Report.
+  async function toggleSubStatusReport(node: TarefaFilhaDTO, noStatusReport: boolean) {
+    await tarefasApi.atualizar(node.id, { noStatusReport });
+    setTarefa((t) => ({
+      ...t,
+      tarefas: t.tarefas.map((f) =>
+        f.id === node.id
+          ? { ...f, noStatusReport }
+          : { ...f, tarefas: f.tarefas.map((n) => (n.id === node.id ? { ...n, noStatusReport } : n)) },
+      ),
+    }));
+    onTarefasMudaram();
+  }
+
   async function toggleTag(tag: TagDTO) {
     const temTag = tarefa.tags.some((t) => t.id === tag.id);
     const novasTags = temTag ? tarefa.tags.filter((t) => t.id !== tag.id) : [...tarefa.tags, tag];
@@ -199,6 +228,8 @@ export function useTarefaDetalhe(
     mudarPrioridade,
     mudarPrazo,
     mudarPrazoRigido,
+    mudarNoStatusReport,
+    salvarCampoStatusReport,
     mudarTipo,
     mudarNivel,
     mudarResponsavel,
@@ -208,6 +239,7 @@ export function useTarefaDetalhe(
     excluir,
     adicionarSubFilha,
     salvarAgendaTarefa,
+    toggleSubStatusReport,
     toggleTag,
     criarTag,
   };

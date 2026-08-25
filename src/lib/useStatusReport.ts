@@ -54,6 +54,18 @@ export function useStatusReport() {
     }));
   }, []);
 
+  // Adiciona uma linha manual atrelada a um projeto real (rootId): encontra o
+  // projeto manual desse root (ou cria) e acrescenta um item vazio.
+  const addItemRoot = useCallback((rootId: string, nome: string) => {
+    setDoc((d) => {
+      const idx = d.projetos.findIndex((p) => p.rootId === rootId);
+      if (idx >= 0) {
+        return { ...d, projetos: d.projetos.map((p, i) => (i === idx ? { ...p, itens: [...p.itens, itemVazio()] } : p)) };
+      }
+      return { ...d, projetos: [...d.projetos, { nome, rootId, itens: [itemVazio()] }] };
+    });
+  }, []);
+
   // Insere um item completo (usado pelo formulário de adicionar).
   const inserirItem = useCallback((pi: number, item: ItemStatus) => {
     setDoc((d) => ({
@@ -100,6 +112,7 @@ export function useStatusReport() {
     renomearProjeto,
     excluirProjeto,
     addItem,
+    addItemRoot,
     inserirItem,
     moverItem,
     atualizarItem,

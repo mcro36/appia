@@ -3,7 +3,7 @@
 import { useState } from "react";
 import { format } from "date-fns";
 import { ptBR } from "date-fns/locale";
-import { ChevronDown, Clock, AlertTriangle, X, GitBranch, EyeOff } from "lucide-react";
+import { ChevronDown, Clock, AlertTriangle, X, GitBranch, EyeOff, Pin } from "lucide-react";
 import { useIsPWA } from "@/lib/useIsPWA";
 import { isAtrasada, STATUS, type Status, type TarefaDTO } from "@/lib/tarefas";
 import {
@@ -26,11 +26,13 @@ const PWA_STATUS_LABEL: Record<Status, string> = {
 function Card({
   tarefa,
   onRemover,
+  onToggleStatusReport,
   onDragStart,
   onAbrir,
 }: {
   tarefa: TarefaDTO;
   onRemover: (id: string) => void;
+  onToggleStatusReport: (id: string, v: boolean) => void;
   onDragStart: (id: string) => void;
   onAbrir: (t: TarefaDTO) => void;
 }) {
@@ -63,13 +65,27 @@ function Card({
             <title>Compartilhado com você — só o responsável altera</title>
           </EyeOff>
         ) : (
-          <button
-            onClick={(e) => { e.stopPropagation(); onRemover(tarefa.id); }}
-            aria-label="Remover"
-            className="shrink-0 text-zinc-300 opacity-0 transition-opacity hover:text-red-500 group-hover:opacity-100"
-          >
-            <X size={15} />
-          </button>
+          <div className="flex shrink-0 items-center gap-1">
+            <button
+              onClick={(e) => { e.stopPropagation(); onToggleStatusReport(tarefa.id, !tarefa.noStatusReport); }}
+              aria-label={tarefa.noStatusReport ? "Remover do Status Report" : "Adicionar ao Status Report"}
+              title={tarefa.noStatusReport ? "No Status Report" : "Adicionar ao Status Report"}
+              className={`transition-opacity ${
+                tarefa.noStatusReport
+                  ? "text-indigo-500 opacity-100"
+                  : "text-zinc-300 opacity-0 hover:text-indigo-500 group-hover:opacity-100"
+              }`}
+            >
+              <Pin size={14} className={tarefa.noStatusReport ? "fill-current" : ""} />
+            </button>
+            <button
+              onClick={(e) => { e.stopPropagation(); onRemover(tarefa.id); }}
+              aria-label="Remover"
+              className="text-zinc-300 opacity-0 transition-opacity hover:text-red-500 group-hover:opacity-100"
+            >
+              <X size={15} />
+            </button>
+          </div>
         )}
       </div>
 
@@ -126,6 +142,7 @@ function Coluna({
   onDragLeave,
   onDrop,
   onRemover,
+  onToggleStatusReport,
   onDragStart,
   onAbrir,
   textoVazio,
@@ -139,6 +156,7 @@ function Coluna({
   onDragLeave: () => void;
   onDrop: () => void;
   onRemover: (id: string) => void;
+  onToggleStatusReport: (id: string, v: boolean) => void;
   onDragStart: (id: string) => void;
   onAbrir: (t: TarefaDTO) => void;
   textoVazio: string;
@@ -176,7 +194,7 @@ function Coluna({
       {!colapsado && (
         <div className="flex flex-col gap-2">
           {tarefas.map((t) => (
-            <Card key={t.id} tarefa={t} onRemover={onRemover} onDragStart={onDragStart} onAbrir={onAbrir} />
+            <Card key={t.id} tarefa={t} onRemover={onRemover} onToggleStatusReport={onToggleStatusReport} onDragStart={onDragStart} onAbrir={onAbrir} />
           ))}
           {tarefas.length === 0 && (
             <p className="rounded-lg border border-dashed border-black/10 px-3 py-6 text-center text-xs text-zinc-400 dark:border-white/10">
@@ -193,11 +211,13 @@ export function KanbanBoard({
   tarefas,
   onMudarStatus,
   onRemover,
+  onToggleStatusReport,
   onAbrir,
 }: {
   tarefas: TarefaDTO[];
   onMudarStatus: (id: string, status: Status) => void;
   onRemover: (id: string) => void;
+  onToggleStatusReport: (id: string, v: boolean) => void;
   onAbrir: (t: TarefaDTO) => void;
 }) {
   const [arrastando, setArrastando] = useState<string | null>(null);
@@ -219,6 +239,7 @@ export function KanbanBoard({
     onDragLeave: () => setColunaAlvo((c) => (c === status ? null : c)),
     onDrop: () => soltar(status),
     onRemover,
+    onToggleStatusReport,
     onDragStart: setArrastando,
     onAbrir,
     textoVazio: "Nenhuma tarefa",

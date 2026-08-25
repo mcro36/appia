@@ -17,9 +17,17 @@ export type NovaTarefa = {
   dataInicio?: string | null;
   duracaoMin?: number | null;
   assigneeId?: string | null;
+  // Status Report (Fase 1)
+  noStatusReport?: boolean;
+  sc?: string | null;
+  statusReportNota?: string | null;
+  proximoPasso?: string | null;
 };
 
 export type MembroDTO = { id: string; nome: string; email: string; papel: string };
+
+// Projeto do Status Report integrado: agrupa as tarefas marcadas por projeto-raiz.
+export type StatusReportProjetoDTO = { rootId: string; titulo: string; itens: TarefaDTO[] };
 
 export type AtividadeDTO = {
   id: string;
@@ -68,6 +76,10 @@ export const tarefasApi = {
       headers: { "Content-Type": "application/json" },
       body: JSON.stringify(dados),
     }).then((r) => parse<TarefaFilhaDTO>(r)),
+};
+
+export const statusReportApi = {
+  listar: () => fetch("/api/status-report").then((r) => parse<StatusReportProjetoDTO[]>(r)),
 };
 
 export const reunioesApi = {

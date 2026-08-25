@@ -31,6 +31,7 @@ export type TarefaFilhaDTO = {
   dataInicio: string | null;
   duracaoMin: number | null;
   editavel: boolean;
+  noStatusReport: boolean;
   tarefas: TarefaFilhaDTO[];
 };
 
@@ -56,6 +57,11 @@ export type TarefaDTO = {
   assignee: { id: string; nome: string } | null;
   criadoPorId: string | null;
   editavel: boolean;
+  // Status Report (Fase 1)
+  noStatusReport: boolean;
+  sc: string | null;
+  statusReportNota: string | null;
+  proximoPasso: string | null;
   tags: TagDTO[];
   tarefas: TarefaFilhaDTO[];
 };

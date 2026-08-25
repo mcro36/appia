@@ -1,14 +1,19 @@
 "use client";
 
-import { useEffect, useRef, useState } from "react";
+import { useEffect, useMemo, useRef, useState } from "react";
 import { useStatusReport } from "@/lib/useStatusReport";
-import { COR_LABEL, CORES, type Cor } from "@/lib/statusReport";
+import { useStatusReportIntegrado } from "@/lib/useStatusReportIntegrado";
+import type { ItemStatus, ProjetoStatus } from "@/lib/statusReport";
 import { exportarExcel, exportarJpg, exportarPdf } from "@/lib/statusExport";
+import { LinhaManual } from "@/components/views/status-report/LinhaManual";
+import { LinhaTarefa, seloDerivado } from "@/components/views/status-report/LinhaTarefa";
+import type { TarefaDTO } from "@/lib/tarefas";
 
-// Aparência fiel à página original (Poppins, azul #1e6fff, cabeçalho navy,
-// selos), como uma "ilha" clara — CSS escopado sob `.sr`. Uma tabela por
-// projeto; leitura mostra os selos; o ✎ (ao lado da lixeira) alterna a edição
-// inline daquela linha. "+ Item" no cabeçalho cria a linha já em edição.
+// Aparência fiel à página original (Poppins, azul #1e6fff, cabeçalho navy, selos),
+// como uma "ilha" clara — CSS escopado sob `.sr`. Uma tabela por projeto. Agora
+// híbrida: tabelas de TAREFAS marcadas (selo derivado do status real + nota) e
+// tabelas MANUAIS (texto livre) coexistem; linhas manuais podem ser anexadas a um
+// projeto real (mesma tabela). Coluna única "SC / Contrato".
 const CSS = `
 @import url('https://fonts.googleapis.com/css2?family=Poppins:wght@400;500;600;700;800&display=swap');
 .sr{
@@ -32,6 +37,7 @@ const CSS = `
 .sr .btn{font-family:inherit;font-size:.82rem;font-weight:600;color:#fff;background:var(--azul);border:none;border-radius:8px;padding:9px 18px;cursor:pointer;transition:.15s;white-space:nowrap}
 .sr .btn:hover{background:#1559d6}
 
+.sr .secao-rot{font-size:.7rem;font-weight:700;color:var(--texto-fraco);text-transform:uppercase;letter-spacing:.5px;margin:2px 2px 10px}
 .sr .projeto-card{border:1px solid var(--borda);border-radius:12px;overflow:hidden;box-shadow:0 1px 3px rgba(16,24,40,.05);margin-bottom:22px}
 .sr .projeto-topo{display:flex;align-items:center;gap:12px;background:var(--grupo-bg);padding:13px 22px;border-bottom:1px solid #d5dced}
 .sr .projeto-nome{flex:1;min-width:0;font-size:1rem;font-weight:700;color:var(--navy);background:transparent;border:1px solid transparent;border-radius:4px;padding:2px 5px;font-family:inherit}
@@ -45,11 +51,17 @@ const CSS = `
 .sr .btn-grupo{display:inline-flex;align-items:center;gap:4px;font-family:inherit;font-size:.73rem;font-weight:600;color:var(--texto-fraco);background:#fff;border:1px solid #d5dced;border-radius:6px;padding:5px 11px;cursor:pointer;white-space:nowrap}
 .sr .btn-grupo:hover{border-color:var(--azul);color:var(--azul)}
 .sr .btn-grupo.perigo:hover{border-color:#f3c6c1;color:#c0392b}
+.sr .add-nota{display:inline-flex;align-items:center;gap:4px;font-family:inherit;font-size:.73rem;font-weight:600;color:var(--texto-fraco);background:#fff;border:1px solid #d5dced;border-radius:6px;padding:5px 11px;cursor:pointer;margin-left:auto}
+.sr .add-nota:hover{border-color:var(--azul);color:var(--azul)}
 
 .sr .rolagem{overflow-x:auto}
-.sr table{width:100%;min-width:840px;border-collapse:collapse}
+/* Preenche todo o espaço disponível; colunas encolhem até o conteúdo (sem quebra)
+   só quando precisa caber. Sem piso artificial de largura. */
+.sr table{width:100%;min-width:0;border-collapse:collapse;table-layout:auto}
 .sr tr.cabecalho th{background:var(--navy);color:#fff;text-align:left;font-size:.9rem;font-weight:600;padding:15px 22px;white-space:nowrap}
-.sr tr.cabecalho th:last-child{width:90px}
+/* Coluna de ações: mínima (só aparece no modo de edição do projeto) */
+.sr tr.cabecalho th:last-child{width:1%;padding-left:8px;padding-right:8px}
+.sr tbody td:last-child{padding-left:8px;padding-right:8px}
 .sr tbody td{padding:14px 22px;border-top:1px solid var(--borda);font-size:.9rem;vertical-align:middle;white-space:nowrap}
 .sr tr.item.alt{background:var(--linha-alt)}
 .sr tr.item:hover{background:#eef4ff}
@@ -59,6 +71,11 @@ const CSS = `
 .sr .desc-sep{color:var(--texto-fraco);margin:0 4px}
 .sr .texto-simples{font-weight:700;color:var(--navy)}
 .sr .proximo-texto{color:var(--texto)}
+.sr .nota-texto{color:var(--texto)}
+.sr .desc-link{background:none;border:none;padding:0;font-family:inherit;font-size:.9rem;font-weight:600;color:var(--navy);cursor:pointer;text-align:left;white-space:normal}
+.sr .desc-link:hover{color:var(--azul);text-decoration:underline}
+.sr .cs-cell{display:flex;flex-direction:column;gap:6px;align-items:flex-start}
+.sr .cs-rot{font-size:.64rem;font-weight:700;color:var(--texto-fraco);text-transform:uppercase;letter-spacing:.4px;margin-right:4px}
 .sr .selo{display:inline-block;padding:7px 16px;border-radius:999px;font-size:.82rem;font-weight:600;line-height:1.2;white-space:nowrap}
 .sr .selo.verde{background:var(--verde-bg);color:var(--verde-tx)}
 .sr .selo.amarelo{background:var(--amarelo-bg);color:var(--amarelo-tx)}
@@ -67,15 +84,14 @@ const CSS = `
 .sr .selo.vermelho{background:var(--vermelho-bg);color:var(--vermelho-tx)}
 .sr .vazio td{color:var(--texto-fraco);padding:16px 22px 16px 46px;font-size:.85rem;white-space:normal;font-style:italic}
 
-.sr .ferramentas{display:flex;gap:4px;opacity:0;transition:opacity .15s;justify-content:flex-end}
-.sr tr:hover .ferramentas,.sr tr.editando .ferramentas{opacity:1}
+.sr .ferramentas{display:flex;gap:4px;justify-content:flex-end}
 .sr .icone{width:28px;height:28px;display:grid;place-items:center;cursor:pointer;border:1px solid transparent;border-radius:6px;background:transparent;color:var(--texto-fraco);font-size:.85rem;line-height:1;padding:0;font-family:inherit}
 .sr .icone:hover{background:#fff;border-color:var(--borda);color:var(--azul)}
 .sr .icone.ativo{background:#fff;border-color:var(--azul);color:var(--azul)}
 .sr .icone.perigo:hover{color:#c0392b;border-color:#f3c6c1}
 
 /* ---- Edição inline (aparece só na linha em edição) ---- */
-.sr .desc-input{width:100%;min-width:220px;border:1px solid var(--borda);background:#fff;font-family:inherit;font-size:.9rem;color:var(--texto);padding:7px 9px;border-radius:7px}
+.sr .desc-input{width:100%;min-width:200px;border:1px solid var(--borda);background:#fff;font-family:inherit;font-size:.9rem;color:var(--texto);padding:7px 9px;border-radius:7px}
 .sr .desc-input:focus{outline:none;border-color:var(--azul);box-shadow:0 0 0 3px rgba(30,111,255,.13)}
 .sr .celula-edit{display:flex;align-items:center;gap:9px}
 .sr .selo-input{flex:1;min-width:70px;width:auto;border:1px solid transparent;border-radius:999px;padding:7px 14px;font-size:.83rem;font-weight:600;font-family:inherit}
@@ -86,9 +102,10 @@ const CSS = `
 .sr .selo-input.cinza{background:var(--cinza-bg);color:var(--cinza-tx)}
 .sr .selo-input.vermelho{background:var(--vermelho-bg);color:var(--vermelho-tx)}
 .sr .selo-input.nenhum{background:#fff;color:var(--navy);font-weight:700;border-color:var(--borda);border-radius:8px}
-/* Swatches de cor (seleção moderna, sem dropdown) */
-.sr .cor-swatches{display:grid;grid-template-columns:repeat(3,auto);gap:5px;flex:none}
-.sr .swatch{width:16px;height:16px;border-radius:50%;border:2px solid #fff;box-shadow:0 0 0 1px var(--borda);cursor:pointer;padding:0;transition:transform .1s,box-shadow .1s}
+/* Seletor de cor: botão único (mostra a cor atual) que abre uma caixinha */
+.sr .cor-picker{position:relative;flex:none}
+.sr .cor-pop{position:absolute;top:calc(100% + 6px);left:0;z-index:40;background:#fff;border:1px solid var(--borda);border-radius:10px;box-shadow:0 8px 24px rgba(16,24,40,.16);padding:8px;display:grid;grid-template-columns:repeat(3,auto);gap:7px}
+.sr .swatch{width:18px;height:18px;border-radius:50%;border:2px solid #fff;box-shadow:0 0 0 1px var(--borda);cursor:pointer;padding:0;transition:transform .1s,box-shadow .1s}
 .sr .swatch:hover{transform:scale(1.18)}
 .sr .swatch.sel{box-shadow:0 0 0 2px var(--azul)}
 .sr .swatch.verde{background:var(--verde-tx)}
@@ -120,68 +137,85 @@ const CSS = `
 .sr .btn-fmt:disabled{opacity:.45;cursor:not-allowed}
 `;
 
-function Celula({ texto, cor }: { texto: string; cor: Cor }) {
-  if (!texto) return null;
-  return cor === "nenhum"
-    ? <span className="texto-simples">{texto}</span>
-    : <span className={`selo ${cor}`}>{texto}</span>;
-}
-
-// Swatches clicáveis: um clique escolhe a cor; a selecionada ganha um anel azul.
-function CorSwatches({ cor, onCor, aria }: { cor: Cor; onCor: (c: Cor) => void; aria: string }) {
+// Cabeçalho das tabelas (colunas iguais nos dois modos).
+function Cabecalho() {
   return (
-    <div className="cor-swatches" role="group" aria-label={`Cor de ${aria}`}>
-      {CORES.map((c) => (
-        <button
-          key={c}
-          type="button"
-          className={`swatch ${c}${cor === c ? " sel" : ""}`}
-          title={COR_LABEL[c]}
-          aria-label={COR_LABEL[c]}
-          aria-pressed={cor === c}
-          onClick={() => onCor(c)}
-        />
-      ))}
-    </div>
+    <thead>
+      <tr className="cabecalho">
+        <th>Descrição do Item</th>
+        <th>SC / Contrato</th>
+        <th>Status</th>
+        <th>Próximo passo</th>
+        <th />
+      </tr>
+    </thead>
   );
 }
 
-export function StatusReport() {
+// Converte uma tarefa marcada num item de exportação (selo derivado + nota).
+function tarefaParaItem(t: TarefaDTO): ItemStatus {
+  const s = seloDerivado(t);
+  return {
+    descricao: t.titulo,
+    sc: t.sc ?? "",
+    corSc: "nenhum",
+    status: t.statusReportNota ? `${s.texto} — ${t.statusReportNota}` : s.texto,
+    corStatus: s.cor,
+    proximoPasso: t.proximoPasso ?? "",
+  };
+}
+
+export function StatusReport({ onAbrirTarefa }: { onAbrirTarefa?: (t: TarefaDTO) => void }) {
   const r = useStatusReport();
   const { doc } = r;
+  const int = useStatusReportIntegrado();
+
   const [novoProj, setNovoProj] = useState("");
   const [arrasto, setArrasto] = useState<{ p: number; i: number } | null>(null);
-  const [editando, setEditando] = useState<{ p: number; i: number } | null>(null);
-  const [editProjeto, setEditProjeto] = useState<number | null>(null);
+  const [editando, setEditando] = useState<{ p: number; i: number } | null>(null); // linha manual (p = índice em doc.projetos)
+  const [editTarefa, setEditTarefa] = useState<string | null>(null); // linha de tarefa (id)
+  const [editProjeto, setEditProjeto] = useState<number | null>(null); // projeto manual avulso (índice)
+  const [editProjInt, setEditProjInt] = useState<string | null>(null); // projeto integrado (rootId)
   const [exportAberto, setExportAberto] = useState(false);
   const [selecionados, setSelecionados] = useState<Set<number>>(new Set());
   const [exportando, setExportando] = useState<"pdf" | "excel" | "jpg" | null>(null);
   const exportRef = useRef<HTMLDivElement>(null);
+
+  const rootIdsInt = useMemo(() => new Set(int.projetos.map((p) => p.rootId)), [int.projetos]);
+  const manualDoRoot = (rootId: string) => doc.projetos.findIndex((p) => p.rootId === rootId);
+  // Projetos manuais avulsos (não atrelados a um projeto real presente).
+  const manuaisAvulsos = doc.projetos
+    .map((p, idx) => ({ p, idx }))
+    .filter(({ p }) => !p.rootId || !rootIdsInt.has(p.rootId));
+
+  // Lista combinada p/ exportação: integrados (tarefas + notas anexas) + avulsos.
+  const projetosExport: ProjetoStatus[] = useMemo(() => {
+    const integrados = int.projetos.map((p) => {
+      const mi = doc.projetos.find((mp) => mp.rootId === p.rootId);
+      return { nome: p.titulo, itens: [...p.itens.map(tarefaParaItem), ...(mi?.itens ?? [])] };
+    });
+    const avulsos = doc.projetos.filter((mp) => !mp.rootId || !rootIdsInt.has(mp.rootId));
+    return [...integrados, ...avulsos];
+  }, [int.projetos, doc.projetos, rootIdsInt]);
 
   function adicionarProjeto() {
     if (!novoProj.trim()) return;
     r.addProjeto(novoProj);
     setNovoProj("");
   }
-
   function abrirExport() {
-    // todos pré-selecionados
-    setSelecionados(new Set(doc.projetos.map((_, i) => i)));
+    setSelecionados(new Set(projetosExport.map((_, i) => i)));
     setExportAberto(true);
   }
   function alternarSel(i: number) {
-    setSelecionados((s) => {
-      const n = new Set(s);
-      if (n.has(i)) n.delete(i); else n.add(i);
-      return n;
-    });
+    setSelecionados((s) => { const n = new Set(s); if (n.has(i)) n.delete(i); else n.add(i); return n; });
   }
-  const todosMarcados = doc.projetos.length > 0 && selecionados.size === doc.projetos.length;
+  const todosMarcados = projetosExport.length > 0 && selecionados.size === projetosExport.length;
   function alternarTodos() {
-    setSelecionados(todosMarcados ? new Set() : new Set(doc.projetos.map((_, i) => i)));
+    setSelecionados(todosMarcados ? new Set() : new Set(projetosExport.map((_, i) => i)));
   }
   async function exportar(fmt: "pdf" | "excel" | "jpg") {
-    const escolhidos = doc.projetos.filter((_, i) => selecionados.has(i));
+    const escolhidos = projetosExport.filter((_, i) => selecionados.has(i));
     if (escolhidos.length === 0 || exportando) return;
     setExportando(fmt);
     try {
@@ -196,25 +230,37 @@ export function StatusReport() {
       setExportando(null);
     }
   }
+
   function adicionarItem(p: number) {
     const novoIdx = doc.projetos[p].itens.length;
     r.addItem(p);
-    setEditando({ p, i: novoIdx }); // já entra em edição
+    setEditando({ p, i: novoIdx });
+  }
+  // Adiciona uma linha manual (nota) a um projeto REAL (por rootId) e já entra em edição.
+  function adicionarNota(rootId: string, titulo: string) {
+    const pm = manualDoRoot(rootId);
+    const p = pm >= 0 ? pm : doc.projetos.length;
+    const i = pm >= 0 ? doc.projetos[pm].itens.length : 0;
+    r.addItemRoot(rootId, titulo);
+    setEditando({ p, i });
   }
   const emEdicao = (p: number, i: number) => editando?.p === p && editando?.i === i;
 
-  // Clicar fora do card em edição sai do modo de edição (projeto e item).
+  // Clicar fora de um card em edição sai do modo de edição (manual e integrado).
   useEffect(() => {
-    if (editProjeto === null && editando === null) return;
+    if (editProjeto === null && editando === null && editTarefa === null && editProjInt === null) return;
     function fora(e: MouseEvent) {
       const card = (e.target as HTMLElement).closest?.(".projeto-card");
       const idx = card ? Number(card.getAttribute("data-proj")) : null;
+      const root = card?.getAttribute("data-root") ?? null;
       setEditProjeto((cur) => (cur !== null && cur !== idx ? null : cur));
       setEditando((cur) => (cur && cur.p !== idx ? null : cur));
+      setEditProjInt((cur) => (cur !== null && cur !== root ? null : cur));
+      setEditTarefa((cur) => (cur && root === null ? null : cur));
     }
     document.addEventListener("mousedown", fora);
     return () => document.removeEventListener("mousedown", fora);
-  }, [editProjeto, editando]);
+  }, [editProjeto, editando, editTarefa, editProjInt]);
 
   // Fecha o popover de exportar ao clicar fora dele.
   useEffect(() => {
@@ -226,13 +272,15 @@ export function StatusReport() {
     return () => document.removeEventListener("mousedown", fora);
   }, [exportAberto]);
 
+  const vazio = int.projetos.length === 0 && doc.projetos.length === 0;
+
   return (
     <div className="sr">
       <style>{CSS}</style>
       <div className="wrap">
-        {/* Novo projeto */}
+        {/* Barra: novo projeto manual + exportar */}
         <div className="barra-projeto">
-          <label htmlFor="novoProjeto">Novo projeto</label>
+          <label htmlFor="novoProjeto">Novo projeto manual</label>
           <input
             id="novoProjeto"
             value={novoProj}
@@ -246,7 +294,7 @@ export function StatusReport() {
             <button
               className="btn-export"
               type="button"
-              disabled={doc.projetos.length === 0}
+              disabled={projetosExport.length === 0}
               aria-haspopup="true"
               aria-expanded={exportAberto}
               onClick={() => (exportAberto ? setExportAberto(false) : abrirExport())}
@@ -264,7 +312,7 @@ export function StatusReport() {
                     <input type="checkbox" checked={todosMarcados} onChange={alternarTodos} />
                     <span>Todos os projetos</span>
                   </label>
-                  {doc.projetos.map((proj, i) => (
+                  {projetosExport.map((proj, i) => (
                     <label className="export-check" key={i}>
                       <input type="checkbox" checked={selecionados.has(i)} onChange={() => alternarSel(i)} />
                       <span>{proj.nome}</span>
@@ -287,8 +335,74 @@ export function StatusReport() {
           </div>
         </div>
 
-        {/* Uma tabela por projeto */}
-        {doc.projetos.map((proj, p) => (
+        {/* Projetos com tarefas marcadas (integrados) — coexistem com notas manuais */}
+        {int.projetos.length > 0 && <div className="secao-rot">Projetos (tarefas marcadas)</div>}
+        {int.projetos.map((proj) => {
+          const pm = manualDoRoot(proj.rootId);
+          const notas = pm >= 0 ? doc.projetos[pm].itens : [];
+          const total = proj.itens.length + notas.length;
+          const emEd = editProjInt === proj.rootId;
+          return (
+            <div className={`projeto-card${emEd ? " editando-proj" : ""}`} key={proj.rootId} data-proj="-1" data-root={proj.rootId}>
+              <div className="projeto-topo">
+                <span className="projeto-nome-ro">{proj.titulo}</span>
+                <span className="projeto-contagem">{total === 1 ? "1 item" : `${total} itens`}</span>
+                <span className="grupo-acoes">
+                  {emEd && (
+                    <span className="grupo-botoes">
+                      <button className="btn-grupo" type="button" onClick={() => adicionarNota(proj.rootId, proj.titulo)}>+ Nota manual</button>
+                    </span>
+                  )}
+                  <button
+                    className={`icone${emEd ? " ativo" : ""}`}
+                    type="button"
+                    title={emEd ? "Concluir edição do projeto" : "Editar projeto (duplo-clique no item para editar)"}
+                    onClick={() => { setEditProjInt(emEd ? null : proj.rootId); setEditTarefa(null); setEditando(null); }}
+                  >
+                    {emEd ? "✓" : "✎"}
+                  </button>
+                </span>
+              </div>
+              <div className="rolagem">
+                <table>
+                  <Cabecalho />
+                  <tbody>
+                    {proj.itens.map((t, i) => (
+                      <LinhaTarefa
+                        key={t.id}
+                        tarefa={t}
+                        alt={i % 2 === 1}
+                        projetoEmEdicao={emEd}
+                        ed={emEd && editTarefa === t.id}
+                        onEdit={() => setEditTarefa((cur) => (cur === t.id ? null : t.id))}
+                        onCampo={(patch) => int.atualizarCampo(t.id, patch)}
+                        onDesmarcar={() => int.desmarcar(t.id)}
+                        onAbrir={onAbrirTarefa}
+                      />
+                    ))}
+                    {notas.map((item, i) => (
+                      <LinhaManual
+                        key={`m${i}`}
+                        item={item}
+                        alt={(proj.itens.length + i) % 2 === 1}
+                        projetoEmEdicao={emEd}
+                        ed={emEd && emEdicao(pm, i)}
+                        numero={i + 1}
+                        onEdit={() => setEditando(emEdicao(pm, i) ? null : { p: pm, i })}
+                        onDelete={() => { if (confirm(`Excluir "${item.descricao || "esta nota"}"?`)) { r.excluirItem(pm, i); setEditando(null); } }}
+                        onCampo={(patch) => r.atualizarItem(pm, i, patch)}
+                      />
+                    ))}
+                  </tbody>
+                </table>
+              </div>
+            </div>
+          );
+        })}
+
+        {/* Projetos manuais avulsos (localStorage) — modo livre completo */}
+        {manuaisAvulsos.length > 0 && int.projetos.length > 0 && <div className="secao-rot">Itens manuais</div>}
+        {manuaisAvulsos.map(({ p: proj, idx: p }) => (
           <div className={`projeto-card${editProjeto === p ? " editando-proj" : ""}`} key={p} data-proj={p}>
             <div className="projeto-topo">
               {editProjeto === p ? (
@@ -323,113 +437,37 @@ export function StatusReport() {
                 <button
                   className={`icone${editProjeto === p ? " ativo" : ""}`}
                   type="button"
-                  title={editProjeto === p ? "Concluir edição do projeto" : "Editar projeto"}
-                  onClick={() => setEditProjeto(editProjeto === p ? null : p)}
+                  title={editProjeto === p ? "Concluir edição do projeto" : "Editar projeto (duplo-clique no item para editar)"}
+                  onClick={() => { setEditProjeto(editProjeto === p ? null : p); setEditando(null); }}
                 >
                   {editProjeto === p ? "✓" : "✎"}
                 </button>
               </span>
             </div>
-
             <div className="rolagem">
               <table>
-                <thead>
-                  <tr className="cabecalho">
-                    <th>Descrição do Item</th>
-                    <th>SC / Contrato</th>
-                    <th>Status</th>
-                    <th>Próximo passo</th>
-                    <th />
-                  </tr>
-                </thead>
+                <Cabecalho />
                 <tbody>
-                  {proj.itens.map((item, i) => {
-                    const ed = emEdicao(p, i);
-                    return (
-                      <tr
-                        key={i}
-                        className={`item${i % 2 ? " alt" : ""}${ed ? " editando" : ""}${arrasto?.p === p && arrasto?.i === i ? " arrastando" : ""}`}
-                        draggable={editProjeto === p && !ed}
-                        onDragStart={() => { if (editProjeto === p && !ed) setArrasto({ p, i }); }}
-                        onDragEnd={() => setArrasto(null)}
-                        onDragOver={(e) => e.preventDefault()}
-                        onDrop={() => { if (arrasto) r.moverItem(arrasto.p, arrasto.i, p, i); setArrasto(null); }}
-                      >
-                        <td>
-                          {ed ? (
-                            <div className="celula-edit">
-                              <span className="num">{i + 1}</span>
-                              <input
-                                className="desc-input"
-                                value={item.descricao}
-                                placeholder="Descrição do item"
-                                aria-label="Descrição"
-                                autoFocus
-                                onChange={(e) => r.atualizarItem(p, i, { descricao: e.target.value })}
-                                onKeyDown={(e) => { if (e.key === "Enter") setEditando(null); }}
-                              />
-                            </div>
-                          ) : (
-                            <>
-                              {editProjeto === p && <span className="pega" title="Arraste para reordenar">⠿ </span>}
-                              <span className="num">Item {i + 1}</span>
-                              <span className="desc-sep">–</span>{item.descricao}
-                            </>
-                          )}
-                        </td>
-                        <td>
-                          {ed ? (
-                            <div className="celula-edit">
-                              <input className={`selo-input ${item.corSc}`} value={item.sc} placeholder="SC / Contrato" aria-label="SC"
-                                onChange={(e) => r.atualizarItem(p, i, { sc: e.target.value })} />
-                              <CorSwatches cor={item.corSc} aria="SC" onCor={(c) => r.atualizarItem(p, i, { corSc: c })} />
-                            </div>
-                          ) : <Celula texto={item.sc} cor={item.corSc} />}
-                        </td>
-                        <td>
-                          {ed ? (
-                            <div className="celula-edit">
-                              <input className={`selo-input ${item.corStatus}`} value={item.status} placeholder="Status" aria-label="Status"
-                                onChange={(e) => r.atualizarItem(p, i, { status: e.target.value })} />
-                              <CorSwatches cor={item.corStatus} aria="Status" onCor={(c) => r.atualizarItem(p, i, { corStatus: c })} />
-                            </div>
-                          ) : <Celula texto={item.status} cor={item.corStatus} />}
-                        </td>
-                        <td>
-                          {ed ? (
-                            <input
-                              className="desc-input"
-                              value={item.proximoPasso}
-                              placeholder="Próximo passo"
-                              aria-label="Próximo passo"
-                              onChange={(e) => r.atualizarItem(p, i, { proximoPasso: e.target.value })}
-                              onKeyDown={(e) => { if (e.key === "Enter") setEditando(null); }}
-                            />
-                          ) : (item.proximoPasso ? <span className="proximo-texto">{item.proximoPasso}</span> : null)}
-                        </td>
-                        <td>
-                          <div className="ferramentas">
-                            <button
-                              className={`icone${ed ? " ativo" : ""}`}
-                              type="button"
-                              title={ed ? "Concluir edição" : "Editar"}
-                              onClick={() => setEditando(ed ? null : { p, i })}
-                            >
-                              {ed ? "✓" : "✎"}
-                            </button>
-                            <button
-                              className="icone perigo"
-                              type="button"
-                              title="Excluir"
-                              onClick={() => { if (confirm(`Excluir "${item.descricao || "este item"}"?`)) { r.excluirItem(p, i); setEditando(null); } }}
-                            >
-                              ✕
-                            </button>
-                          </div>
-                        </td>
-                      </tr>
-                    );
-                  })}
+                  {proj.itens.map((item, i) => (
+                    <LinhaManual
+                      key={i}
+                      item={item}
+                      alt={i % 2 === 1}
+                      projetoEmEdicao={editProjeto === p}
+                      ed={editProjeto === p && emEdicao(p, i)}
+                      numero={i + 1}
+                      drag={{
+                        ativo: editProjeto === p,
+                        arrastando: arrasto?.p === p && arrasto?.i === i,
+                        onDragStart: () => setArrasto({ p, i }),
+                        onDragEnd: () => setArrasto(null),
+                        onDrop: () => { if (arrasto) r.moverItem(arrasto.p, arrasto.i, p, i); setArrasto(null); },
+                      }}
+                      onEdit={() => setEditando(emEdicao(p, i) ? null : { p, i })}
+                      onDelete={() => { if (confirm(`Excluir "${item.descricao || "este item"}"?`)) { r.excluirItem(p, i); setEditando(null); } }}
+                      onCampo={(patch) => r.atualizarItem(p, i, patch)}
+                    />
+                  ))}
                   {proj.itens.length === 0 && (
                     <tr className="vazio"><td colSpan={5}>Nenhum item. Clique em <b>+ Item</b> para adicionar.</td></tr>
                   )}
@@ -439,9 +477,10 @@ export function StatusReport() {
           </div>
         ))}
 
-        {doc.projetos.length === 0 && (
+        {vazio && (
           <p style={{ textAlign: "center", color: "var(--texto-fraco)", padding: "40px 0", fontSize: ".9rem" }}>
-            Nenhum projeto ainda. Use o campo <b>Novo projeto</b> acima.
+            Nada aqui ainda. Marque tarefas com o 📌 (Kanban, Tabela ou detalhe) para trazê-las ao Status Report,
+            ou crie um <b>projeto manual</b> acima.
           </p>
         )}
       </div>

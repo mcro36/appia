@@ -187,7 +187,7 @@ export default function Home() {
             </p>
           )}
           {visao === "status" ? (
-            <StatusReport />
+            <StatusReport onAbrirTarefa={setTarefaAberta} />
           ) : visao === "kanban" ? (
             <PlanejadorDia
               folhas={folhas}
@@ -203,6 +203,7 @@ export default function Home() {
                   <KanbanBoard
                     tarefas={tarefasFiltradas}
                     onMudarStatus={(id, status) => atualizarTarefa(id, { status })}
+                    onToggleStatusReport={(id, v) => atualizarTarefa(id, { noStatusReport: v })}
                     onRemover={handleRemover}
                     onAbrir={setTarefaAberta}
                   />
