@@ -1,6 +1,7 @@
 import { isAtrasada, type TarefaDTO } from "@/lib/tarefas";
 import { STATUS_LABEL } from "@/lib/tarefas-display";
-import type { Cor } from "@/lib/statusReport";
+import { isCor, type Cor } from "@/lib/statusReport";
+import { Celula, CorPicker } from "@/components/views/status-report/celulas";
 
 // Selo derivado do status REAL da tarefa, usando as cores do .sr (report).
 export function seloDerivado(t: TarefaDTO): { cor: Cor; texto: string } {
@@ -9,7 +10,7 @@ export function seloDerivado(t: TarefaDTO): { cor: Cor; texto: string } {
   return { cor: map[t.status], texto: STATUS_LABEL[t.status] };
 }
 
-type CampoSR = "sc" | "statusReportNota" | "proximoPasso";
+type CampoSR = "sc" | "statusReportNota" | "statusReportNotaCor" | "proximoPasso";
 
 // Linha de uma TAREFA marcada no Status Report (híbrida): identidade/selo vêm da
 // tarefa; SC/Contrato, nota e próximo passo são editáveis (persistem na tarefa).
@@ -26,6 +27,8 @@ export function LinhaTarefa({
   onAbrir?: (t: TarefaDTO) => void;
 }) {
   const selo = seloDerivado(tarefa);
+  const nota = tarefa.statusReportNota?.trim() ?? "";
+  const notaCor: Cor = isCor(tarefa.statusReportNotaCor) ? tarefa.statusReportNotaCor : "nenhum";
   return (
     <tr
       className={`item${alt ? " alt" : ""}${ed ? " editando" : ""}`}
@@ -43,13 +46,16 @@ export function LinhaTarefa({
         ) : (tarefa.sc ? <span className="proximo-texto">{tarefa.sc}</span> : null)}
       </td>
       <td>
-        <div className="cs-cell">
-          <span className={`selo ${selo.cor}`}>{selo.texto}</span>
-          {ed ? (
-            <input className="desc-input" value={tarefa.statusReportNota ?? ""} placeholder="Nota de status" aria-label="Nota de status"
+        {ed ? (
+          <div className="celula-edit">
+            <input className={`selo-input ${notaCor}`} value={tarefa.statusReportNota ?? ""} placeholder={selo.texto} aria-label="Nota de status"
               onChange={(e) => onCampo({ statusReportNota: e.target.value })} />
-          ) : (tarefa.statusReportNota ? <span className="nota-texto">{tarefa.statusReportNota}</span> : null)}
-        </div>
+            <CorPicker cor={notaCor} aria="nota de status" onCor={(c) => onCampo({ statusReportNotaCor: c })} />
+          </div>
+        ) : (nota
+          ? <Celula texto={nota} cor={notaCor} />
+          : <span className={`selo ${selo.cor}`}>{selo.texto}</span>
+        )}
       </td>
       <td>
         {ed ? (

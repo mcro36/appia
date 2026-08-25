@@ -122,6 +122,7 @@ export function mapTarefa(t: any, perm?: PermCtx) {
     noStatusReport: t.noStatusReport ?? false,
     sc: t.sc ?? null,
     statusReportNota: t.statusReportNota ?? null,
+    statusReportNotaCor: t.statusReportNotaCor ?? null,
     proximoPasso: t.proximoPasso ?? null,
     tags: (t.tags ?? []).map((tt: any) => ({ id: tt.tag.id, nome: tt.tag.nome, cor: tt.tag.cor })),
     // eslint-disable-next-line @typescript-eslint/no-explicit-any

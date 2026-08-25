@@ -8,7 +8,7 @@ import { useCallback, useEffect, useState } from "react";
 import { statusReportApi, tarefasApi, type StatusReportProjetoDTO } from "@/lib/api";
 import type { TarefaDTO } from "@/lib/tarefas";
 
-type CampoSR = "sc" | "statusReportNota" | "proximoPasso";
+type CampoSR = "sc" | "statusReportNota" | "statusReportNotaCor" | "proximoPasso";
 
 export function useStatusReportIntegrado() {
   const [projetos, setProjetos] = useState<StatusReportProjetoDTO[]>([]);

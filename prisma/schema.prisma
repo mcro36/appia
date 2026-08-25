@@ -128,10 +128,11 @@ model Tarefa {
   atualizadaEm   DateTime        @updatedAt
   // Status Report (Fase 1): marca a tarefa para aparecer no report; contrato/sc e
   // notas narrativas ficam na própria tarefa (histórico/rastreabilidade).
-  noStatusReport   Boolean       @default(false)
-  sc               String?
-  statusReportNota String?
-  proximoPasso     String?
+  noStatusReport      Boolean    @default(false)
+  sc                  String?
+  statusReportNota    String?
+  statusReportNotaCor String?
+  proximoPasso        String?
   tags           TarefaTag[]
   lembretes      Lembrete[]
   // Tarefas: relação auto-referencial (pai = projeto/atividade, filhos = tarefas)

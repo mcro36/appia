@@ -21,6 +21,7 @@ export type NovaTarefa = {
   noStatusReport?: boolean;
   sc?: string | null;
   statusReportNota?: string | null;
+  statusReportNotaCor?: string | null;
   proximoPasso?: string | null;
 };
 

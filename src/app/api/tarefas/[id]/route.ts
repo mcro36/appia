@@ -89,6 +89,8 @@ export async function PATCH(req: Request, { params }: Ctx) {
     data.sc = typeof body.sc === "string" ? body.sc.trim() || null : null;
   if (body.statusReportNota !== undefined)
     data.statusReportNota = typeof body.statusReportNota === "string" ? body.statusReportNota.trim() || null : null;
+  if (body.statusReportNotaCor !== undefined)
+    data.statusReportNotaCor = typeof body.statusReportNotaCor === "string" ? body.statusReportNotaCor : null;
   if (body.proximoPasso !== undefined)
     data.proximoPasso = typeof body.proximoPasso === "string" ? body.proximoPasso.trim() || null : null;
   if (Array.isArray(body.tagIds))
