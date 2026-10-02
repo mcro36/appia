@@ -19,7 +19,10 @@ function nivelNotificar(prazo: Date, agora: number): Nivel | null {
 
 function autorizado(req: Request): boolean {
   const segredo = process.env.CRON_SECRET;
-  if (!segredo) return true; // sem segredo configurado, libera (dev)
+  // Sem segredo configurado, libera só em desenvolvimento. Em produção falha
+  // FECHADO: esquecer a env var na Vercel não pode tornar a rota pública — ela
+  // lê todas as inscrições de push e dispara notificações.
+  if (!segredo) return process.env.NODE_ENV !== "production";
   const auth = req.headers.get("authorization");
   if (auth === `Bearer ${segredo}`) return true; // Vercel Cron
   const url = new URL(req.url);
