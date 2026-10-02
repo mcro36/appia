@@ -1,5 +1,6 @@
 import type { Nivel, Tipo, Prioridade, Recorrencia, Status, TarefaDTO, TagDTO, TarefaFilhaDTO, ReuniaoDTO, TopicoDTO } from "@/lib/tarefas";
 import type { AgendaPayload, ConfigDTO } from "@/lib/agenda";
+import type { NoGanttDTO } from "@/lib/gantt";
 
 export type NovaTarefa = {
   tipo?: Tipo;
@@ -51,6 +52,9 @@ export const tarefasApi = {
   listar: () => fetch("/api/tarefas").then((r) => parse<TarefaDTO[]>(r)),
 
   obter: (id: string) => fetch(`/api/tarefas/${id}`).then((r) => parse<TarefaDTO>(r)),
+
+  /** Árvore completa de um projeto-raiz, achatada (Gantt). */
+  arvore: (id: string) => fetch(`/api/tarefas/${id}/arvore`).then((r) => parse<NoGanttDTO[]>(r)),
 
   criar: (dados: NovaTarefa) =>
     fetch("/api/tarefas", {

@@ -15,6 +15,7 @@ import { TarefaDetalhe } from "@/components/TarefaDetalhe";
 import { KanbanBoard } from "@/components/views/KanbanBoard";
 import { TabelaTarefas } from "@/components/views/TabelaTarefas";
 import { CalendarioTarefas } from "@/components/views/CalendarioTarefas";
+import { GanttProjeto } from "@/components/views/GanttProjeto";
 import { PlanejadorDia } from "@/components/views/PlanejadorDia";
 import { PainelMetricas } from "@/components/views/PainelMetricas";
 import { StatusReport } from "@/components/views/StatusReport";
@@ -39,6 +40,8 @@ export default function Home() {
   const [filtroNivel, setFiltroNivel] = useState<Nivel | "todos">("todos");
   const [filtroResponsavel, setFiltroResponsavel] = useState<string>("todos"); // "todos" | "sem" | usuarioId
   const [membros, setMembros] = useState<MembroDTO[]>([]);
+  // Contador que invalida a árvore do Gantt (fonte própria, fora de useTarefas).
+  const [versaoArvore, setVersaoArvore] = useState(0);
   const isPWA = useIsPWA();
 
   // Membros da workspace ativa (para filtrar por responsável — só faz sentido
@@ -63,12 +66,19 @@ export default function Home() {
     atualizarLocal(id, dados);
     setTarefaAberta((prev) => (prev?.id === id ? { ...prev, ...dados } : prev));
     agendaSuja.current = true;
+    // O Gantt tem fonte PRÓPRIA (a árvore do projeto), que `atualizarLocal` não
+    // alcança — sem isto, definir um prazo no detalhe não faz a barra aparecer.
+    // Nada concorre aqui: o detalhe já persistiu e não há fetch em voo.
+    setVersaoArvore((v) => v + 1);
   }
 
   // Subtarefas/reuniões mudaram (detalhe, chat): atualiza a lista visível e
   // marca o planejador para recarregar na próxima visita.
   function tarefasMudaram() {
-    recarregar();
+    // Bump só DEPOIS do recarregar: com connection_limit=1, disparar a árvore
+    // junto com a lista esgotaria o pool (mesma razão do comentário em
+    // useTarefas.ts).
+    recarregar().then(() => setVersaoArvore((v) => v + 1));
     agendaSuja.current = true;
   }
 
@@ -109,6 +119,9 @@ export default function Home() {
       if (document.visibilityState !== "visible" || visao === "status") return;
       if (visao === "kanban") { recarregar(); carregarAgenda(); }
       else if (FOLHAS.has(visao)) carregarAgenda();
+      // Gantt: a lista alimenta o seletor de projetos e a árvore alimenta as
+      // barras — as duas em sequência, nunca em paralelo (connection_limit=1).
+      else if (visao === "gantt") recarregar().then(() => setVersaoArvore((v) => v + 1));
       else recarregar();
     }
     const t = setInterval(sincronizar, 25000);
@@ -214,6 +227,12 @@ export default function Home() {
             <PainelMetricas folhas={folhas} carregando={carregandoAgenda} />
           ) : carregando ? (
             <p className="text-sm text-zinc-500">Carregando…</p>
+          ) : visao === "gantt" ? (
+            <GanttProjeto
+              projetos={tarefasFiltradas}
+              versao={versaoArvore}
+              onAbrirTarefa={setTarefaAberta}
+            />
           ) : visao === "tabela" ? (
             <TabelaTarefas
               tarefas={tarefasFiltradas}

@@ -151,11 +151,62 @@ usuário — o mesmo predicado já é cross-workspace.
 **Migração:** `rootId`/`criadoPorId` nullable + backfill; schema e código sobem **juntos**
 para o `master` (lição do deploy anterior).
 
+## Gantt por projeto — FASE 1 (leitura) IMPLEMENTADA
+Linha do tempo por projeto-raiz, uma barra por tarefa de qualquer nível da árvore.
+Substitui o item "Linha do tempo/Gantt" que estava em Futuro.
+
+**Decisão de modelo: intervalo DERIVADO, sem campos novos.**
+Gantt precisa de `[início, fim]` em dias, e o modelo não tem isso. Tem `prazo`
+(compromisso, de onde sai `isAtrasada`) e `dataInicio` + `duracaoMin` (bloco de
+execução do planejador diário, intradiário) — coisas diferentes. Optou-se por
+derivar em vez de migrar: nenhum campo muda de significado, e o custo é reversível.
+Ordem de derivação (sinal mais forte → mais fraco), em `spanDeFolha`:
+
+1. `dataInicio` + `prazo` → intervalo explícito ("planejado")
+2. `concluidaEm` → do início conhecido (ou `criadaEm`) até a conclusão ("realizado")
+3. `dataInicio` + `duracaoMin` → bloco de trabalho ("execucao")
+4. só `dataInicio` → marco sem duração ("ponto")
+5. só `prazo` → da criação até o prazo, INFERIDO ("ate_prazo", traço tracejado)
+6. nenhum → **sem barra**; a linha aparece com selo "sem data"
+
+Pai = rollup `min(início)`/`max(fim)` dos descendentes. O `prazo` é desenhado como
+**losango**, nunca como fim da barra — assim dá para ver o plano estourar o compromisso.
+
+**Limitação conhecida (medida na entrega):** 0 de 73 tarefas têm `dataInicio` E
+`prazo`. As barras vêm quase todas de blocos de execução (minutos), então na escala
+Semana viram slivers. A visão rende conforme as tarefas ganharem início+prazo; até
+lá serve também como localizador de buraco de planejamento (conta as sem data).
+Se não bastar, o passo seguinte é `inicioPlanejado`/`fimPlanejado` (nullable,
+`db push`) — o domínio já isola a derivação num ponto só, então a troca é local.
+
+- [x] Domínio puro `src/lib/gantt.ts` (derivação, rollup, escala, posicionamento);
+      apresentação em `gantt-display.ts`; dados/estado em `useGantt.ts`.
+- [x] `GET /api/tarefas/[id]/arvore`: consulta **plana** por `rootId` (indexado),
+      uma query, agnóstica à profundidade — `includeTarefa` traz 1 nível e
+      `includeTarefaDetalhe` 2, mas a árvore real chega a 3+. Hierarquia remontada
+      no client. Escopada por `tarefaVisivel`; `editavel` continua por item.
+- [x] Visão `gantt` no `ViewSwitcher`; seletor de projeto; escalas Dia/Semana/Mês;
+      recolher/expandir; marcador de hoje; legenda das origens de intervalo.
+- [x] Refetch: a árvore é fonte PRÓPRIA (fora de `useTarefas`), invalidada pelo
+      contador `versaoArvore` em `page.tsx` — encadeado **após** `recarregar()`
+      para não abrir duas queries em paralelo (`connection_limit=1`).
+- [ ] **Smoke test pendente** — o banco ficou indisponível durante a entrega. Falta
+      exercitar: as 3 escalas (após a correção de `fimDaColuna`), recolher/expandir
+      sem deslocar a janela, clique em linha/barra abrindo o detalhe, data definida
+      no detalhe virando barra, e modo escuro (cabeçalho fixo é translúcido).
+- [ ] Mobile/PWA: `ViewSwitcher` com 6 botões e coluna de rótulo de 260px deixam
+      ~115px de linha do tempo a 375px. Decidir: esconder no PWA ou encolher a coluna.
+
+**Fase 2 (futuro):** arrastar/redimensionar barras gravando o plano (depende da
+decisão de campos acima); **dependências** — `TarefaDep` existe no schema com 0
+linhas e 0 código, e o Gantt é o lugar natural para estreá-la (setas + guarda de
+ciclo); linha de base vs real, reusando `tempoGastoMin`.
+
 ## Design / experiência (premissa)
 A aplicação se inspira em **Monday, Jira e ferramentas similares** de gestão de trabalho:
 - Sidebar de navegação à esquerda + barra de ferramentas no topo
-- Múltiplas visões dos mesmos dados com seletor de visão (MVP: **Quadro Kanban + Tabela +
-  Calendário** com visões mês/semana/dia; futuro: Linha do tempo/Gantt)
+- Múltiplas visões dos mesmos dados com seletor de visão (**Quadro Kanban + Tabela +
+  Calendário** com visões mês/semana/dia + **Gantt por projeto**, ver seção própria)
 - Kanban com colunas por status e cards arrastáveis entre colunas
 - Tabela/grid com edição inline
 - Uso forte de cor como sinal (pills de status e prioridade), visual limpo e denso

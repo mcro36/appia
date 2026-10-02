@@ -1,14 +1,15 @@
 "use client";
 
-import { Columns3, Table2, CalendarDays, BarChart3, ClipboardList, type LucideIcon } from "lucide-react";
+import { Columns3, Table2, CalendarDays, ChartNoAxesGantt, BarChart3, ClipboardList, type LucideIcon } from "lucide-react";
 import { useIsPWA } from "@/lib/useIsPWA";
 
-export type Visao = "kanban" | "tabela" | "calendario" | "painel" | "status";
+export type Visao = "kanban" | "tabela" | "calendario" | "gantt" | "painel" | "status";
 
 const OPCOES: { id: Visao; label: string; Icone: LucideIcon }[] = [
   { id: "kanban", label: "Quadro", Icone: Columns3 },
   { id: "tabela", label: "Tabela", Icone: Table2 },
   { id: "calendario", label: "Calendário", Icone: CalendarDays },
+  { id: "gantt", label: "Gantt", Icone: ChartNoAxesGantt },
   { id: "painel", label: "Painel", Icone: BarChart3 },
   { id: "status", label: "Status Report", Icone: ClipboardList },
 ];

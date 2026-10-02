@@ -8,7 +8,7 @@ const selAssignee = { select: { id: true, nome: true } } as const;
 // ou dono/admin). Sem contexto (ex.: server jobs), tudo é editável.
 export type PermCtx = { usuarioId: string; admin: boolean };
 // eslint-disable-next-line @typescript-eslint/no-explicit-any
-function podeEditar(node: any, perm?: PermCtx): boolean {
+export function podeEditar(node: any, perm?: PermCtx): boolean {
   if (!perm) return true;
   return perm.admin || node.assigneeId === perm.usuarioId || node.criadoPorId === perm.usuarioId;
 }
